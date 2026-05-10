@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Obra — JCP Juazeiro do Norte</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #F4F2EE;
+    --surface: #FFFFFF;
+    --surface2: #F9F8F6;
+    --border: rgba(0,0,0,0.08);
+    --text: #1A1917;
+    --text2: #6B6860;
+    --text3: #9E9C96;
+    --accent: #1B3A5C;
+    --accent2: #2E6DA4;
+    --green: #1D6B3E;
+    --green-bg: #E8F5EE;
+    --amber: #8A5300;
+    --amber-bg: #FEF3DC;
+    --red: #8B1A1A;
+    --red-bg: #FDEAEA;
+    --blue: #1B3A5C;
+    --blue-bg: #E4EDF6;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--accent);
+    color: white;
+    padding: 0 40px;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 0 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+  }
+
+  .logos-area {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .logo-placeholder {
+    background: rgba(255,255,255,0.12);
+    border: 1.5px dashed rgba(255,255,255,0.35);
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .logo-placeholder:hover { background: rgba(255,255,255,0.18); }
+
+  .logo-placeholder input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .logo-placeholder .logo-icon { font-size: 18px; opacity: 0.7; }
+  .logo-placeholder .logo-label { font-size: 10px; opacity: 0.6; letter-spacing: 0.5px; text-transform: uppercase; }
+  .logo-placeholder img { max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
+
+  .lp-jfce { width: 90px; height: 56px; }
+  .lp-pnud { width: 80px; height: 56px; }
+  .lp-jcp  { width: 90px; height: 56px; }
+
+  .logo-divider { width: 1px; height: 40px; background: rgba(255,255,255,0.2); }
+
+  .header-title h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: white;
+  }
+  .header-title p {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+    margin-top: 3px;
+  }
+
+  .header-meta {
+    text-align: right;
+  }
+  .header-meta .medicao-badge {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-bottom: 6px;
+  }
+  .header-meta p { font-size: 11px; color: rgba(255,255,255,0.55); }
+
+  .header-nav {
+    display: flex;
+    gap: 4px;
+    padding: 12px 0;
+  }
+  .nav-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 500;
+    padding: 7px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+  .nav-btn.active { background: rgba(255,255,255,0.18); color: white; }
+
+  /* ── LAYOUT ── */
+  .main { padding: 28px 40px 48px; max-width: 1400px; margin: 0 auto; }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── GRIDS ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .full-row  { margin-bottom: 20px; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 20px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .card-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+  }
+
+  /* ── KPI CARDS ── */
+  .kpi-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 18px 20px;
+  }
+  .kpi-label { font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1; }
+  .kpi-value.mono { font-family: 'DM Mono', monospace; font-size: 22px; }
+  .kpi-sub { font-size: 11px; color: var(--text3); margin-top: 6px; }
+  .kpi-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 500;
+    padding: 3px 8px; border-radius: 12px;
+    margin-top: 8px;
+  }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-amber { background: var(--amber-bg); color: var(--amber); }
+  .badge-red   { background: var(--red-bg);   color: var(--red); }
+  .badge-blue  { background: var(--blue-bg);  color: var(--blue); }
+
+  /* ── PROGRESS BARS ── */
+  .progress-wrap { margin: 8px 0; }
+  .progress-labels { display: flex; justify-content: space-between; margin-bottom: 5px; }
+  .progress-name { font-size: 12px; color: var(--text2); }
+  .progress-pct  { font-size: 12px; font-weight: 600; color: var(--text); font-family: 'DM Mono', monospace; }
+
+  .progress-track {
+    height: 8px; background: var(--bg);
+    border-radius: 4px; overflow: hidden;
+    position: relative;
+  }
+  .progress-bar {
+    height: 100%; border-radius: 4px;
+    transition: width 0.8s ease;
+  }
+  .progress-plan {
+    position: absolute; top: 0;
+    height: 100%; width: 2px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 1px;
+  }
+
+  .bar-green  { background: #2D9B63; }
+  .bar-blue   { background: #2E6DA4; }
+  .bar-amber  { background: #D4910E; }
+  .bar-gray   { background: #888780; }
+
+  /* ── IDP / GAUGE ── */
+  .idp-wrap { text-align: center; padding: 12px 0; }
+  .idp-value { font-size: 56px; font-weight: 300; color: var(--text); font-family: 'DM Mono', monospace; line-height: 1; }
+  .idp-label { font-size: 12px; color: var(--text3); margin-top: 4px; }
+  .idp-status { margin-top: 12px; }
+
+  /* ── TIMELINE ── */
+  .timeline-item {
+    display: flex; gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .timeline-item:last-child { border-bottom: none; }
+  .tl-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    margin-top: 4px; flex-shrink: 0;
+  }
+  .tl-dot-green { background: #2D9B63; }
+  .tl-dot-gray  { background: var(--text3); }
+  .tl-dot-blue  { background: #2E6DA4; }
+  .tl-content { flex: 1; }
+  .tl-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .tl-meta  { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .tl-val   { font-size: 13px; font-family: 'DM Mono', monospace; font-weight: 500; color: var(--text2); text-align: right; flex-shrink: 0; }
+
+  /* ── ETAPAS TABLE ── */
+  .etapa-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 100px 130px 130px;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .etapa-row:last-child { border-bottom: none; }
+  .etapa-row.header { padding-bottom: 8px; }
+  .etapa-row.header span { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; }
+
+  .etapa-num { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; }
+  .etapa-nome { font-size: 13px; color: var(--text); font-weight: 500; }
+  .etapa-valor { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text2); text-align: right; }
+  .etapa-acum  { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text); font-weight: 500; text-align: center; }
+
+  .mini-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .mini-bar-track { flex: 1; height: 5px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+  .mini-bar-fill  { height: 100%; border-radius: 3px; }
+
+  /* ── PRAZO VISUAL ── */
+  .prazo-track {
+    height: 24px; background: var(--bg); border-radius: 6px;
+    overflow: hidden; position: relative; margin: 14px 0;
+  }
+  .prazo-decorrido { height: 100%; background: var(--accent2); border-radius: 6px 0 0 6px; display: flex; align-items: center; padding-left: 8px; }
+  .prazo-decorrido span { font-size: 11px; font-weight: 500; color: white; white-space: nowrap; }
+  .prazo-restante-label {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; color: var(--text3);
+  }
+
+  /* ── SECTION TITLE ── */
+  .section-title {
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    text-transform: uppercase; letter-spacing: 0.8px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ── FINANCEIRO ── */
+  .fin-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-bottom: 20px;
+  }
+  .fin-item { text-align: center; padding: 16px; background: var(--surface2); border-radius: var(--radius-sm); }
+  .fin-item-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .fin-item-val { font-size: 18px; font-weight: 600; color: var(--text); font-family: 'DM Mono', monospace; }
+  .fin-item-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+  /* ── MEDICOES TABLE ── */
+  table.med-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.med-table thead th {
+    text-align: left; font-size: 10px; font-weight: 600;
+    color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px;
+    padding: 0 10px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.med-table tbody td {
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+  table.med-table tbody tr:last-child td { border-bottom: none; }
+  table.med-table .mono { font-family: 'DM Mono', monospace; font-size: 12px; }
+  table.med-table .highlight { color: var(--text); font-weight: 600; }
+  table.med-table tr.current-row td { background: var(--blue-bg); }
+  table.med-table tr.current-row td:first-child { border-left: 3px solid var(--accent2); padding-left: 7px; }
+
+  /* ── CONTRATO INFO ── */
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .info-row { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .info-val { font-size: 13px; color: var(--text); font-weight: 500; }
+
+  /* ── DONUT ── */
+  .donut-wrap { display: flex; align-items: center; gap: 24px; }
+  .donut-legend { flex: 1; }
+  .legend-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .legend-name { font-size: 12px; color: var(--text2); flex: 1; }
+  .legend-pct { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text); font-weight: 500; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .main { padding: 20px 20px 40px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .two-col, .three-col, .fin-summary { grid-template-columns: 1fr; }
+    header { padding: 0 20px; }
+  }
+
+  /* ── PRINT ── */
+  @media print {
+    .header-nav { display: none; }
+    .section { display: block !important; }
+  }
+
+  /* Watermark footer */
+  .watermark {
+    text-align: center; margin-top: 32px;
+    font-size: 11px; color: var(--text3);
+    padding-top: 16px; border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="logos-area">
+      <div class="header-title">
+        <h1>Construção — Nova Sede da Justiça Federal</h1>
+        <p>Juazeiro do Norte / CE &nbsp;·&nbsp; Contrato nº 25/2025 &nbsp;·&nbsp; Consórcio Juazeiro do Norte</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <div class="medicao-badge">4ª Medição — Março/2026</div>
+      <p>Atualizado em 31/03/2026 &nbsp;·&nbsp; Aprovado pela Fiscalização</p>
+    </div>
+  </div>
+  <nav class="header-nav">
+    <button class="nav-btn active" onclick="showSection('visao-geral',this)">Visão Geral</button>
+    <button class="nav-btn" onclick="showSection('avanço-fisico',this)">Avanço Físico</button>
+    <button class="nav-btn" onclick="showSection('execucao-fin',this)">Execução Financeira</button>
+    <button class="nav-btn" onclick="showSection('prazos',this)">Prazos</button>
+    <button class="nav-btn" onclick="showSection('contrato',this)">Dados do Contrato</button>
+  </nav>
+</header>
+
+<main class="main">
+
+  <!-- ══════════════════════════════════════
+       SEÇÃO: VISÃO GERAL
+  ══════════════════════════════════════ -->
+  <div id="visao-geral" class="section active">
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Avanço Físico Acumulado</div>
+        <div class="kpi-value mono">4,68%</div>
+        <div class="kpi-sub" style="display:flex; flex-direction:column; gap:3px; margin-top:6px;">
+          <span>Mês atual (Mar/26): <strong style="color:var(--text); font-family:'DM Mono',monospace;">3,39%</strong></span>
+          <span>Medições anteriores: <strong style="color:var(--text); font-family:'DM Mono',monospace;">1,29%</strong></span>
+        </div>
+        <div class="kpi-badge badge-green" style="margin-top:8px;">✓ Obra no prazo (IDP = 1,00)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Valor Medido Acumulado</div>
+        <div class="kpi-value mono" style="font-size:19px;">R$ 1.336.806</div>
+        <div class="kpi-sub">4,68% do contrato executado</div>
+        <div class="kpi-badge badge-blue">4ª Medição Aprovada</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">IDP — Índice de Desempenho</div>
+        <div class="kpi-value mono">1,00</div>
+        <div class="kpi-sub">Tendência de término: 10/12/2028</div>
+        <div class="kpi-badge badge-green">✓ Obra no prazo</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Saldo Contratual</div>
+        <div class="kpi-value mono" style="font-size:19px;">R$ 27,2 Mi</div>
+        <div class="kpi-sub">de R$ 28,6 Mi contratados</div>
+        <div class="kpi-badge badge-blue">95,32% restante</div>
+      </div>
+    </div>
+
+    <!-- Linha 2: Avanço Físico e IDP -->
+    <div class="two-col">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Avanço Físico — Etapas Iniciadas</span>
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-labels">
+            <span class="progress-name">Serviços Preliminares</span>
+            <span class="progress-pct">99,05%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar bar-green" style="width:99.05%"></div>
+          </div>
+        </div>
+
+        <div class="progress-wrap" style="margin-top:12px">
+          <div class="progress-labels">
+            <span class="progress-name">Administração da Obra</span>
+            <span class="progress-pct">4,68%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar bar-blue" style="width:4.68%"></div>
+          </div>
+        </div>
+
+        <div class="progress-wrap" style="margin-top:12px">
+          <div class="progress-labels">
+            <span class="progress-name">Fundações e Estruturas</span>
+            <span class="progress-pct">9,05%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar bar-amber" style="width:9.05%"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px; padding-top:14px; border-top: 1px solid var(--border);">
+          <div style="font-size:11px; color:var(--text3); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.6px;">Etapas não iniciadas</div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">
+            <span style="font-size:11px; padding:3px 8px; border-radius:10px; background:var(--surface2); color:var(--text3); border:1px solid var(--border);">Arquitetura</span>
+            <span style="font-size:11px; padding:3px 8px; border-radius:10px; background:var(--surface2); color:var(--text3); border:1px solid var(--border);">Hidrossanitário</span>
+            <span style="font-size:11px; padding:3px 8px; border-radius:10px; background:var(--surface2); color:var(--text3); border:1px solid var(--border);">Elétrico</span>
+            <span style="font-size:11px; padding:3px 8px; border-radius:10px; background:var(--surface2); color:var(--text3); border:1px solid var(--border);">Mecânico</span>
+            <span style="font-size:11px; padding:3px 8px; border-radius:10px; background:var(--surface2); color:var(--text3); border:1px solid var(--border);">Incêndio</span>
+            <span style="font-size:11px; padding:3px 8px; border-radius:10px; background:var(--surface2); color:var(--text3); border:1px solid var(--border);">Complementares</span>
+            <span style="font-size:11px; padding:3px 8px; border-radius:10px; background:var(--surface2); color:var(--text3); border:1px solid var(--border);">Fotovoltaica</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Situação Geral da Obra</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+          <div style="background:var(--green-bg); border-radius:8px; padding:14px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div style="font-size:10px; color:var(--green); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">IDP</div>
+            <div style="font-size:36px; font-weight:300; color:var(--green); font-family:'DM Mono',monospace; line-height:1;">1,00</div>
+            <div style="font-size:11px; color:var(--green); margin-top:6px;">Obra no prazo</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="background:var(--surface2); border-radius:8px; padding:10px 14px;">
+              <div style="font-size:10px; color:var(--text3); text-transform:uppercase;">Execução decorrida</div>
+              <div style="font-size:16px; font-weight:600; color:var(--text); margin-top:2px; font-family:'DM Mono',monospace;">118 dias</div>
+              <div style="font-size:10px; color:var(--text3);">de 1.096 dias totais</div>
+            </div>
+            <div style="background:var(--surface2); border-radius:8px; padding:10px 14px;">
+              <div style="font-size:10px; color:var(--text3); text-transform:uppercase;">Execução restante</div>
+              <div style="font-size:16px; font-weight:600; color:var(--text); margin-top:2px; font-family:'DM Mono',monospace;">978 dias</div>
+              <div style="font-size:10px; color:var(--text3);">até 10/12/2028</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px;">Progresso temporal — execução</div>
+        <div class="prazo-track">
+          <div class="prazo-decorrido" style="width:10.77%">
+            <span>10,77% (118 d)</span>
+          </div>
+          <span class="prazo-restante-label">978 dias restantes</span>
+        </div>
+
+        <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+          <div style="font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px;">Medições realizadas</div>
+          <div style="display:flex; gap:6px;">
+            <div style="flex:1; text-align:center; padding:8px; background:var(--green-bg); border-radius:6px;">
+              <div style="font-size:10px; color:var(--green);">Med. 3</div>
+              <div style="font-size:13px; font-weight:600; color:var(--green); font-family:'DM Mono',monospace;">1,29%</div>
+              <div style="font-size:9px; color:var(--green); opacity:0.7;">Fev/26</div>
+            </div>
+            <div style="flex:1; text-align:center; padding:8px; background:var(--blue-bg); border-radius:6px; border:2px solid var(--accent2);">
+              <div style="font-size:10px; color:var(--accent2);">Med. 4 ▶</div>
+              <div style="font-size:13px; font-weight:600; color:var(--accent2); font-family:'DM Mono',monospace;">3,39%</div>
+              <div style="font-size:9px; color:var(--accent2); opacity:0.7;">Mar/26</div>
+            </div>
+            <div style="flex:1; text-align:center; padding:8px; background:var(--surface2); border-radius:6px; border:1px dashed var(--border);">
+              <div style="font-size:10px; color:var(--text3);">Med. 5</div>
+              <div style="font-size:13px; font-weight:600; color:var(--text3);">—</div>
+              <div style="font-size:9px; color:var(--text3);">Abr/26</div>
+            </div>
+            <div style="flex:1; text-align:center; padding:8px; background:var(--surface2); border-radius:6px; border:1px dashed var(--border);">
+              <div style="font-size:10px; color:var(--text3);">Med. 6</div>
+              <div style="font-size:13px; font-weight:600; color:var(--text3);">—</div>
+              <div style="font-size:9px; color:var(--text3);">Mai/26</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Linha 3: Gráfico comparativo realizado vs planejado -->
+    <div class="card full-row">
+      <div class="card-header">
+        <span class="card-title">Curva S — Avanço Físico Acumulado (Realizado vs. Planejado)</span>
+        <span style="font-size:11px; color:var(--text3);">Meses da obra</span>
+      </div>
+      <div style="position:relative; height:240px;">
+        <canvas id="curvaSChart" role="img" aria-label="Curva S mostrando avanço físico planejado versus realizado ao longo dos 36 meses da obra.">Gráfico comparativo de avanço físico acumulado.</canvas>
+      </div>
+      <div style="display:flex; gap:20px; margin-top:12px; justify-content:center;">
+        <span style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text2);">
+          <span style="width:24px; height:3px; background:#2E6DA4; border-radius:2px; display:inline-block;"></span>Planejado
+        </span>
+        <span style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text2);">
+          <span style="width:24px; height:3px; background:#2D9B63; border-radius:2px; display:inline-block;"></span>Realizado
+        </span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SEÇÃO: AVANÇO FÍSICO
+  ══════════════════════════════════════ -->
+  <div id="avanço-fisico" class="section">
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Avanço por Etapa (EAP Orçamento)</span>
+        </div>
+
+        <div class="etapa-row header">
+          <span></span>
+          <span>Etapa</span>
+          <span style="text-align:right;">Valor Total</span>
+          <span style="text-align:center;">% Acumulado</span>
+          <span>Progresso</span>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">01</span>
+          <span class="etapa-nome">Serviços Preliminares</span>
+          <span class="etapa-valor">R$ 684.838</span>
+          <span class="etapa-acum">99,05%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-green" style="width:99.05%"></div></div>
+          </div>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">02</span>
+          <span class="etapa-nome">Administração da Obra</span>
+          <span class="etapa-valor">R$ 2.333.206</span>
+          <span class="etapa-acum">4,68%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-blue" style="width:4.68%"></div></div>
+          </div>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">03</span>
+          <span class="etapa-nome">Fundações e Estruturas</span>
+          <span class="etapa-valor">R$ 6.067.667</span>
+          <span class="etapa-acum">9,05%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-amber" style="width:9.05%"></div></div>
+          </div>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">04</span>
+          <span class="etapa-nome">Arquitetura e Urbanismo</span>
+          <span class="etapa-valor">R$ 9.606.334</span>
+          <span class="etapa-acum" style="color:var(--text3);">0%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-gray" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">05</span>
+          <span class="etapa-nome">Hidrossanitário</span>
+          <span class="etapa-valor">R$ —</span>
+          <span class="etapa-acum" style="color:var(--text3);">0%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-gray" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">06</span>
+          <span class="etapa-nome">Inst. Elétricas e Eletrônicas</span>
+          <span class="etapa-valor">R$ —</span>
+          <span class="etapa-acum" style="color:var(--text3);">0%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-gray" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">07</span>
+          <span class="etapa-nome">Equipamentos e Mecânico</span>
+          <span class="etapa-valor">R$ —</span>
+          <span class="etapa-acum" style="color:var(--text3);">0%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-gray" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">08</span>
+          <span class="etapa-nome">Prevenção de Incêndio</span>
+          <span class="etapa-valor">R$ —</span>
+          <span class="etapa-acum" style="color:var(--text3);">0%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-gray" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">09</span>
+          <span class="etapa-nome">Serviços Complementares</span>
+          <span class="etapa-valor">R$ —</span>
+          <span class="etapa-acum" style="color:var(--text3);">0%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-gray" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div class="etapa-row">
+          <span class="etapa-num">10</span>
+          <span class="etapa-nome">Usina Fotovoltaica</span>
+          <span class="etapa-valor">R$ —</span>
+          <span class="etapa-acum" style="color:var(--text3);">0%</span>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-track"><div class="mini-bar-fill bar-gray" style="width:0%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:16px;">
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Comparativo Realizado vs. Planejado</span>
+          </div>
+          <div style="position:relative; height:220px;">
+            <canvas id="resPlanChart" role="img" aria-label="Gráfico de barras comparando avanço físico realizado versus planejado por medição.">Comparativo de avanço por medição.</canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Distribuição por Etapa (Valor Contratual)</span>
+          </div>
+          <div style="position:relative; height:220px;">
+            <canvas id="donutEtapas" role="img" aria-label="Gráfico de pizza mostrando distribuição de valor contratual por etapa.">Distribuição de valor por etapa.</canvas>
+          </div>
+          <div id="donutLegend" style="margin-top:12px;"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Fundações — detalhe -->
+    <div class="card full-row">
+      <div class="card-header">
+        <span class="card-title">Detalhamento — Fundações e Estruturas (9,05% concluído)</span>
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(4,1fr); gap:12px;">
+        <div style="background:var(--green-bg); border-radius:8px; padding:14px;">
+          <div style="font-size:10px; color:var(--green); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Contenção concluída</div>
+          <div style="font-size:18px; font-weight:600; color:var(--green); font-family:'DM Mono',monospace;">Estaca Escavada</div>
+          <div style="font-size:11px; color:var(--green); margin-top:4px;">R$ 158.144 · 100%</div>
+        </div>
+        <div style="background:var(--green-bg); border-radius:8px; padding:14px;">
+          <div style="font-size:10px; color:var(--green); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Concluído</div>
+          <div style="font-size:18px; font-weight:600; color:var(--green); font-family:'DM Mono',monospace;">Viga Coroamento</div>
+          <div style="font-size:11px; color:var(--green); margin-top:4px;">R$ 115.741 · 100%</div>
+        </div>
+        <div style="background:var(--green-bg); border-radius:8px; padding:14px;">
+          <div style="font-size:10px; color:var(--green); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Concluído</div>
+          <div style="font-size:18px; font-weight:600; color:var(--green); font-family:'DM Mono',monospace;">Estaca Hélice S1</div>
+          <div style="font-size:11px; color:var(--green); margin-top:4px;">R$ 140.375 · 100%</div>
+        </div>
+        <div style="background:var(--green-bg); border-radius:8px; padding:14px;">
+          <div style="font-size:10px; color:var(--green); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px;">Concluído</div>
+          <div style="font-size:18px; font-weight:600; color:var(--green); font-family:'DM Mono',monospace;">Fund. Bloco Anexo</div>
+          <div style="font-size:11px; color:var(--green); margin-top:4px;">R$ 120.167 · 100%</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SEÇÃO: EXECUÇÃO FINANCEIRA
+  ══════════════════════════════════════ -->
+  <div id="execucao-fin" class="section">
+
+    <div class="fin-summary">
+      <div class="fin-item">
+        <div class="fin-item-label">Valor do Contrato</div>
+        <div class="fin-item-val">R$ 28.566.749</div>
+        <div class="fin-item-sub">Valor inicial</div>
+      </div>
+      <div class="fin-item">
+        <div class="fin-item-label">Executado Acumulado</div>
+        <div class="fin-item-val" style="color:var(--green);">R$ 1.336.806</div>
+        <div class="fin-item-sub">4,68% do total</div>
+      </div>
+      <div class="fin-item">
+        <div class="fin-item-label">Saldo Contratual</div>
+        <div class="fin-item-val" style="color:var(--accent2);">R$ 27.229.943</div>
+        <div class="fin-item-sub">95,32% disponível</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Histórico de Medições</span>
+        </div>
+        <table class="med-table">
+          <thead>
+            <tr>
+              <th>Medição</th>
+              <th>Período</th>
+              <th>% Mês</th>
+              <th>% Acum.</th>
+              <th style="text-align:right">Valor Medido</th>
+              <th style="text-align:right">Acumulado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">01</td>
+              <td>Dez/2025</td>
+              <td class="mono">0,00%</td>
+              <td class="mono">0,00%</td>
+              <td class="mono" style="text-align:right">R$ 0</td>
+              <td class="mono" style="text-align:right">R$ 0</td>
+            </tr>
+            <tr>
+              <td class="mono">02</td>
+              <td>Jan/2026</td>
+              <td class="mono">0,00%</td>
+              <td class="mono">0,00%</td>
+              <td class="mono" style="text-align:right">R$ 0</td>
+              <td class="mono" style="text-align:right">R$ 0</td>
+            </tr>
+            <tr>
+              <td class="mono">03</td>
+              <td>Fev/2026</td>
+              <td class="mono">1,29%</td>
+              <td class="mono">1,29%</td>
+              <td class="mono" style="text-align:right">R$ 368.273</td>
+              <td class="mono" style="text-align:right">R$ 368.273</td>
+            </tr>
+            <tr class="current-row">
+              <td class="mono highlight">04 ▶</td>
+              <td><strong>Mar/2026</strong></td>
+              <td class="mono highlight">3,39%</td>
+              <td class="mono highlight">4,68%</td>
+              <td class="mono highlight" style="text-align:right">R$ 968.533</td>
+              <td class="mono highlight" style="text-align:right">R$ 1.336.806</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:14px; padding:10px; background:var(--blue-bg); border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:12px; color:var(--accent2); font-weight:500;">Saldo após 4ª Medição</span>
+          <span style="font-size:15px; font-weight:600; color:var(--accent); font-family:'DM Mono',monospace;">R$ 27.229.943</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Evolução Financeira Acumulada</span>
+        </div>
+        <div style="position:relative; height:260px;">
+          <canvas id="finChart" role="img" aria-label="Gráfico de barras mostrando a evolução do valor financeiro acumulado medição por medição.">Evolução financeira por medição.</canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="card full-row">
+      <div class="card-header">
+        <span class="card-title">Composição Financeira da 4ª Medição — R$ 968.533</span>
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:12px;">
+        <div style="padding:14px; background:var(--surface2); border-radius:8px; border-left:4px solid #2D9B63;">
+          <div style="font-size:10px; color:var(--text3); text-transform:uppercase; margin-bottom:6px;">Serviços Preliminares</div>
+          <div style="font-size:20px; font-weight:600; color:var(--text); font-family:'DM Mono',monospace;">R$ 340.116</div>
+          <div style="font-size:11px; color:var(--text3); margin-top:4px;">35,12% da medição · Locação da obra + Terraplanagem</div>
+        </div>
+        <div style="padding:14px; background:var(--surface2); border-radius:8px; border-left:4px solid #2E6DA4;">
+          <div style="font-size:10px; color:var(--text3); text-transform:uppercase; margin-bottom:6px;">Administração da Obra</div>
+          <div style="font-size:20px; font-weight:600; color:var(--text); font-family:'DM Mono',monospace;">R$ 79.105</div>
+          <div style="font-size:11px; color:var(--text3); margin-top:4px;">8,17% da medição · Custo administrativo mensal</div>
+        </div>
+        <div style="padding:14px; background:var(--surface2); border-radius:8px; border-left:4px solid #D4910E;">
+          <div style="font-size:10px; color:var(--text3); text-transform:uppercase; margin-bottom:6px;">Fundações e Estruturas</div>
+          <div style="font-size:20px; font-weight:600; color:var(--text); font-family:'DM Mono',monospace;">R$ 549.311</div>
+          <div style="font-size:11px; color:var(--text3); margin-top:4px;">56,71% da medição · Estacas, contenção e fundações</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SEÇÃO: PRAZOS
+  ══════════════════════════════════════ -->
+  <div id="prazos" class="section">
+
+    <div class="three-col">
+      <div class="kpi-card">
+        <div class="kpi-label">Prazo de Execução</div>
+        <div class="kpi-value mono">36 meses</div>
+        <div class="kpi-sub">OS: 10/12/2025 → 10/12/2028</div>
+        <div class="kpi-badge badge-green">Sem aditivos</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Prazo de Vigência</div>
+        <div class="kpi-value mono">40 meses</div>
+        <div class="kpi-sub">04/08/2025 → 04/12/2028</div>
+        <div class="kpi-badge badge-blue">972 dias restantes</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Tendência de Término</div>
+        <div class="kpi-value mono" style="font-size:18px;">10/12/2028</div>
+        <div class="kpi-sub">IDP = 1,00 · sem desvio</div>
+        <div class="kpi-badge badge-green">✓ No prazo contratual</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Progresso Temporal</span>
+        </div>
+
+        <div style="margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span style="font-size:12px; color:var(--text2); font-weight:500;">Vigência do Contrato</span>
+            <span style="font-size:12px; font-family:'DM Mono',monospace; color:var(--text);">246 / 1.218 dias</span>
+          </div>
+          <div class="prazo-track">
+            <div class="prazo-decorrido" style="width:20.2%">
+              <span>20,2% decorrida</span>
+            </div>
+            <span class="prazo-restante-label">972 dias restantes</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text3); margin-top:4px;">
+            <span>04/08/2025</span>
+            <span>04/12/2028</span>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span style="font-size:12px; color:var(--text2); font-weight:500;">Prazo de Execução da Obra</span>
+            <span style="font-size:12px; font-family:'DM Mono',monospace; color:var(--text);">118 / 1.096 dias</span>
+          </div>
+          <div class="prazo-track">
+            <div class="prazo-decorrido" style="width:10.77%; background:var(--accent);">
+              <span>10,77%</span>
+            </div>
+            <span class="prazo-restante-label">978 dias restantes</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text3); margin-top:4px;">
+            <span>10/12/2025 (OS)</span>
+            <span>10/12/2028</span>
+          </div>
+        </div>
+
+        <div style="margin-top:20px; padding:14px; border-radius:8px; background:var(--green-bg);">
+          <div style="font-size:12px; font-weight:500; color:var(--green); margin-bottom:4px;">Análise de Tendência</div>
+          <div style="font-size:12px; color:var(--green); line-height:1.6;">
+            Com IDP = 1,00, a obra apresenta desempenho físico exatamente alinhado ao cronograma contratual. A tendência de término mantém a data prevista de <strong>10/12/2028</strong>, sem necessidade de aditivo de prazo.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Cronograma de Marcos</span>
+        </div>
+
+        <div class="timeline-item">
+          <div class="tl-dot tl-dot-green"></div>
+          <div class="tl-content">
+            <div class="tl-title">Assinatura do Contrato</div>
+            <div class="tl-meta">04/08/2025</div>
+          </div>
+          <div class="tl-val" style="color:var(--green);">✓ Concluído</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="tl-dot tl-dot-green"></div>
+          <div class="tl-content">
+            <div class="tl-title">Ordem de Serviço</div>
+            <div class="tl-meta">10/12/2025 · Início da execução</div>
+          </div>
+          <div class="tl-val" style="color:var(--green);">✓ Emitida</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="tl-dot tl-dot-green"></div>
+          <div class="tl-content">
+            <div class="tl-title">Canteiro e Mobilização</div>
+            <div class="tl-meta">Dez/2025 — Jan/2026 · Serv. Preliminares</div>
+          </div>
+          <div class="tl-val" style="color:var(--green);">✓ 99,05%</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="tl-dot tl-dot-blue"></div>
+          <div class="tl-content">
+            <div class="tl-title">4ª Medição (atual)</div>
+            <div class="tl-meta">01/03 a 31/03/2026 · Mar/2026</div>
+          </div>
+          <div class="tl-val" style="color:var(--accent2);">▶ 4,68%</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="tl-dot tl-dot-gray"></div>
+          <div class="tl-content">
+            <div class="tl-title">Estruturas Bloco Principal</div>
+            <div class="tl-meta">Previsto: 2026</div>
+          </div>
+          <div class="tl-val">Em andamento</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="tl-dot tl-dot-gray"></div>
+          <div class="tl-content">
+            <div class="tl-title">Término da Execução</div>
+            <div class="tl-meta">10/12/2028</div>
+          </div>
+          <div class="tl-val">Previsto</div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="tl-dot tl-dot-gray"></div>
+          <div class="tl-content">
+            <div class="tl-title">Término da Vigência</div>
+            <div class="tl-meta">04/12/2028</div>
+          </div>
+          <div class="tl-val">Previsto</div>
+        </div>
+
+        <div style="margin-top:10px; padding:10px; background:var(--amber-bg); border-radius:8px;">
+          <div style="font-size:11px; color:var(--amber);">⚠ Atenção: O prazo de vigência termina 6 dias antes do prazo de execução. Avaliar eventual aditivo de vigência caso necessário.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SEÇÃO: DADOS DO CONTRATO
+  ══════════════════════════════════════ -->
+  <div id="contrato" class="section">
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Identificação do Contrato</span>
+        </div>
+        <div class="info-grid">
+          <div class="info-row">
+            <span class="info-label">Objeto</span>
+            <span class="info-val">Construção da Nova Sede da Justiça Federal em Juazeiro do Norte / CE</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Nº do Contrato</span>
+            <span class="info-val">25/2025</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Concorrência Pública</span>
+            <span class="info-val">90001/2025</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">CNO da Obra</span>
+            <span class="info-val">90.025.93927/72</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Empresa Contratada</span>
+            <span class="info-val">Consórcio Juazeiro do Norte</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">CNPJ</span>
+            <span class="info-val">62.009.288/0001-12</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Situação do Contrato</span>
+            <span class="info-val"><span class="kpi-badge badge-green" style="margin:0;">Vigente</span></span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Paralisações</span>
+            <span class="info-val">Nenhuma registrada</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Valores e Prazos</span>
+        </div>
+        <div class="info-grid">
+          <div class="info-row">
+            <span class="info-label">Valor Inicial do Contrato</span>
+            <span class="info-val" style="font-family:'DM Mono',monospace;">R$ 28.566.749,33</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Valor Atual do Contrato</span>
+            <span class="info-val" style="font-family:'DM Mono',monospace;">R$ 28.566.749,33</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Aditivos de Valor</span>
+            <span class="info-val">Nenhum</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Assinatura do Contrato</span>
+            <span class="info-val">04/08/2025</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Ordem de Serviço</span>
+            <span class="info-val">10/12/2025</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Prazo de Execução</span>
+            <span class="info-val">36 meses · Término em 10/12/2028</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Prazo de Vigência</span>
+            <span class="info-val">40 meses · Término em 04/12/2028</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Aditivos de Prazo</span>
+            <span class="info-val">Nenhum</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card full-row">
+      <div class="card-header">
+        <span class="card-title">Endereço da Obra</span>
+      </div>
+      <p style="font-size:13px; color:var(--text2); line-height:1.7;">
+        Rua José Geraldo da Cruz (L) com a Rua Presidente Médici (O), na Rua Manoel Pires (N) com a Rua Frei Damião (S), Bairro Lagoa Seca, Juazeiro do Norte — CE.
+      </p>
+    </div>
+
+  </div>
+
+  <div class="watermark">
+    Dashboard de Acompanhamento de Obra · Contrato 25/2025 · 4ª Medição — Março/2026 · Atualizado em 31/03/2026
+  </div>
+
+</main>
+
+<script>
+function showSection(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  setTimeout(initCharts, 50);
+}
+
+function loadLogo(input, imgId) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById(imgId);
+    img.src = e.target.result;
+    img.style.display = 'block';
+    const wrap = input.closest('.logo-placeholder');
+    wrap.querySelector('.logo-icon').style.display = 'none';
+    wrap.querySelector('.logo-label').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+let chartsInited = false;
+const chartInstances = {};
+
+function initCharts() {
+  initCurvaS();
+  initResPlan();
+  initDonut();
+  initFinanceiro();
+}
+
+function initCurvaS() {
+  const ctx = document.getElementById('curvaSChart');
+  if (!ctx || chartInstances['curvaSChart']) return;
+  const labels = Array.from({length: 36}, (_, i) => `M${i+1}`);
+  const planejadoAcum = [
+    0, 0, 1.29, 4.68, 5.65, 5.65, 6.55, 9.22, 9.96, 13.73, 14.39,
+    18.37, 24.89, 28.94, 30.77, 33.71, 35.06, 40.34, 43.82, 44.92,
+    44.92, 44.92, 44.92, 44.92, 44.92, 57.43, 67.84, 69.04, 72.16,
+    75.34, 77.91, 81.03, 85.24, 92.16, 94.90, 100.00
+  ];
+  const realizadoAcum = [0, 0, 1.29, 4.68, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];
+
+  chartInstances['curvaSChart'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Planejado',
+          data: planejadoAcum,
+          borderColor: '#2E6DA4',
+          backgroundColor: 'rgba(46,109,164,0.08)',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.4,
+          fill: true,
+          borderDash: [4,3]
+        },
+        {
+          label: 'Realizado',
+          data: realizadoAcum,
+          borderColor: '#2D9B63',
+          backgroundColor: 'rgba(45,155,99,0.12)',
+          borderWidth: 2.5,
+          pointRadius: (ctx) => ctx.dataIndex <= 3 ? 4 : 0,
+          pointBackgroundColor: '#2D9B63',
+          tension: 0.3,
+          fill: true,
+          spanGaps: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, maxTicksLimit: 12, color: '#9E9C96' }, grid: { display: false } },
+        y: {
+          min: 0, max: 100,
+          ticks: { callback: v => v + '%', font: { size: 10 }, color: '#9E9C96', stepSize: 20 },
+          grid: { color: 'rgba(0,0,0,0.05)' }
+        }
+      }
+    }
+  });
+}
+
+function initResPlan() {
+  const ctx = document.getElementById('resPlanChart');
+  if (!ctx || chartInstances['resPlanChart']) return;
+  chartInstances['resPlanChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Med. 1\nDez/25', 'Med. 2\nJan/26', 'Med. 3\nFev/26', 'Med. 4\nMar/26'],
+      datasets: [
+        { label: 'Planejado', data: [0, 0, 1.29, 3.39], backgroundColor: 'rgba(46,109,164,0.3)', borderColor: '#2E6DA4', borderWidth: 1.5, borderRadius: 4 },
+        { label: 'Realizado', data: [0, 0, 1.29, 3.39], backgroundColor: 'rgba(45,155,99,0.7)', borderColor: '#2D9B63', borderWidth: 0, borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%` } } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, color: '#9E9C96' }, grid: { display: false } },
+        y: { ticks: { callback: v => v + '%', font: { size: 10 }, color: '#9E9C96' }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    }
+  });
+}
+
+function initDonut() {
+  const ctx = document.getElementById('donutEtapas');
+  if (!ctx || chartInstances['donutEtapas']) return;
+  const data = [684838, 2333206, 6067667, 9606334, 0, 0, 0, 0, 0, 0];
+  const labels = ['Serv. Preliminares','Administração','Fundações/Estrut.','Arquitetura','Hidrossanitário','Elétrico','Mecânico','Incêndio','Complement.','Fotovoltaica'];
+  const colors = ['#2D9B63','#2E6DA4','#D4910E','#B05CC0','#888780','#888780','#888780','#888780','#888780','#888780'];
+  const total = data.reduce((a,b) => a+b, 0);
+
+  chartInstances['donutEtapas'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.label}: R$ ${c.parsed.toLocaleString('pt-BR')} (${((c.parsed/total)*100).toFixed(1)}%)` } } }
+    }
+  });
+
+  const leg = document.getElementById('donutLegend');
+  if (leg) {
+    const shown = labels.slice(0,4);
+    leg.innerHTML = shown.map((l,i) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px;">
+        <span style="width:10px;height:10px;border-radius:2px;background:${colors[i]};flex-shrink:0;"></span>
+        <span style="flex:1;color:var(--text2);">${l}</span>
+        <span style="font-family:'DM Mono',monospace;color:var(--text);font-size:11px;">${((data[i]/total)*100).toFixed(1)}%</span>
+      </div>
+    `).join('');
+  }
+}
+
+function initFinanceiro() {
+  const ctx = document.getElementById('finChart');
+  if (!ctx || chartInstances['finChart']) return;
+  chartInstances['finChart'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Med. 1', 'Med. 2', 'Med. 3', 'Med. 4 ▶'],
+      datasets: [{
+        label: 'Valor acumulado (R$)',
+        data: [0, 0, 368273, 1336806],
+        backgroundColor: ['rgba(136,135,128,0.4)','rgba(136,135,128,0.4)','rgba(45,155,99,0.5)','rgba(46,109,164,0.85)'],
+        borderColor: ['#88878080','#88878080','#2D9B63','#2E6DA4'],
+        borderWidth: [0,0,0,0],
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => `R$ ${c.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2})}` } }
+      },
+      scales: {
+        x: { ticks: { font: { size: 11 }, color: '#9E9C96' }, grid: { display: false } },
+        y: { ticks: { callback: v => 'R$ ' + (v/1000).toFixed(0)+'k', font: { size: 10 }, color: '#9E9C96' }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initCharts);
+</script>
+</body>
+</html>
