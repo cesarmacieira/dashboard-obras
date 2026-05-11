@@ -48,7 +48,10 @@ def _extrair_config(wb) -> dict:
     ws = wb["CONFIG"]
 
     # ---- Medição atual ------------------------------------------------
-    medicao_atual = _val(ws, 2, 2)  # célula B2
+    # Não confiamos em CONFIG!B2 pois pode estar desatualizado na planilha.
+    # Detectamos pelo maior número de medição com valor medido > 0 na EAP (linha 270).
+    # Isso é calculado após extrair a EAP; aqui guardamos o valor de B2 como fallback.
+    medicao_atual = _val(ws, 2, 2)  # célula B2 (fallback)
 
     # ---- Vigência -------------------------------------------------------
     prazo_inicio = _val(ws, 6, 12)   # L6
@@ -321,6 +324,15 @@ def carregar_dados(caminho_arquivo: str) -> tuple[dict, pd.DataFrame, pd.DataFra
     config    = _extrair_config(wb)
     df_eap    = _extrair_eap(wb)
     df_totais = _extrair_totais_eap(wb)
+
+    # ---- Auto-detectar medicao_atual pelo maior nº com total_medido > 0 ----
+    # CONFIG!B2 pode estar desatualizado na planilha (problema comum).
+    df_com_dados = df_totais[
+        df_totais["total_medido"].notna() & (df_totais["total_medido"] > 0)
+    ]
+    if len(df_com_dados) > 0:
+        config["medicao_atual"] = int(df_com_dados["medicao"].max())
+    # Se não há medição com dados, mantém o valor de CONFIG!B2 como fallback.
 
     return config, df_eap, df_totais
 

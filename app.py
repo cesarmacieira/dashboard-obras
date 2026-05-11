@@ -59,35 +59,85 @@ def _build_data(config: dict, df_eap: pd.DataFrame, df_totais: pd.DataFrame) -> 
     med_atual = int(config["medicao_atual"])
     idp_val = config["idp"]["valor"] or 1.0
 
-    # ---- Prazos — usar valores diretos da CONFIG (calculados pela planilha) ---
+    # ---- Prazos — calcular dinamicamente a partir de hoje ----------------
+    import datetime as _dt
     vig = config["vigencia"]
     exe = config["execucao"]
     tend = config["tendencia"]
+    _hoje = _dt.date.today()
 
-    # Vigência: usar dias_decorridos e prazo_total_dias da CONFIG diretamente
-    vig_dec  = int(vig["dias_decorridos"] or 0)
-    vig_tot  = int(vig["prazo_total_dias"] or 0)
-    vig_rest = max(vig_tot - vig_dec, 0)
+    # Vigência: calcular dias decorridos = hoje - início da vigência
+    _vig_ini = vig["inicio"]
+    if _vig_ini is not None:
+        if hasattr(_vig_ini, "date"):
+            _vig_ini = _vig_ini.date()
+        elif isinstance(_vig_ini, str):
+            try: _vig_ini = _dt.date.fromisoformat(_vig_ini[:10])
+            except: _vig_ini = None
+    _vig_fim = vig["fim"]
+    if _vig_fim is not None:
+        if hasattr(_vig_fim, "date"):
+            _vig_fim = _vig_fim.date()
+        elif isinstance(_vig_fim, str):
+            try: _vig_fim = _dt.date.fromisoformat(_vig_fim[:10])
+            except: _vig_fim = None
+    if _vig_ini and _vig_fim:
+        vig_tot = (_vig_fim - _vig_ini).days
+        vig_dec = max((_hoje - _vig_ini).days, 0)
+        vig_rest = max((_vig_fim - _hoje).days, 0)
+    else:
+        vig_tot  = int(vig["prazo_total_dias"] or 0)
+        vig_dec  = int(vig["dias_decorridos"] or 0)
+        vig_rest = max(vig_tot - vig_dec, 0)
 
-    # Execução: usar dias_decorridos e prazo_total_dias da CONFIG diretamente
-    exe_dec  = int(exe["dias_decorridos"] or 0)
-    exe_tot  = int(exe["prazo_total_dias"] or 0)
-    exe_rest = max(exe_tot - exe_dec, 0)
+    # Execução: calcular dias decorridos = hoje - início da execução (OS)
+    _exe_ini = exe["inicio"]
+    if _exe_ini is not None:
+        if hasattr(_exe_ini, "date"):
+            _exe_ini = _exe_ini.date()
+        elif isinstance(_exe_ini, str):
+            try: _exe_ini = _dt.date.fromisoformat(_exe_ini[:10])
+            except: _exe_ini = None
+    _exe_fim = exe["fim"]
+    if _exe_fim is not None:
+        if hasattr(_exe_fim, "date"):
+            _exe_fim = _exe_fim.date()
+        elif isinstance(_exe_fim, str):
+            try: _exe_fim = _dt.date.fromisoformat(_exe_fim[:10])
+            except: _exe_fim = None
+    if _exe_ini and _exe_fim:
+        exe_tot = (_exe_fim - _exe_ini).days
+        exe_dec = max((_hoje - _exe_ini).days, 0)
+        exe_rest = max((_exe_fim - _hoje).days, 0)
+    else:
+        exe_tot  = int(exe["prazo_total_dias"] or 0)
+        exe_dec  = int(exe["dias_decorridos"] or 0)
+        exe_rest = max(exe_tot - exe_dec, 0)
+
+    # Meses decorridos para exibição
+    _vig_meses_dec = round(vig_dec / 30.44) if vig_dec else 0
+    _vig_meses_tot = round(vig_tot / 30.44) if vig_tot else 0
+    _exe_meses_dec = round(exe_dec / 30.44) if exe_dec else 0
+    _exe_meses_tot = round(exe_tot / 30.44) if exe_tot else 0
 
     prazos = {
-        "prazo_vigencia_data":       fmt_date(vig["fim"]),
+        "prazo_vigencia_data":       fmt_date(_vig_fim or vig["fim"]),
         "vigencia_total_dias":       vig_tot,
         "vigencia_decorrida_dias":   vig_dec,
         "vigencia_restante_dias":    vig_rest,
         "vigencia_decorrida_texto":  f"{vig_dec} dias decorridos",
         "vigencia_restante_texto":   f"{vig_rest} dias restantes",
+        "vigencia_meses_decorridos": _vig_meses_dec,
+        "vigencia_meses_total":      _vig_meses_tot,
 
-        "prazo_execucao_data":       fmt_date(exe["fim"]),
+        "prazo_execucao_data":       fmt_date(_exe_fim or exe["fim"]),
         "execucao_total_dias":       exe_tot,
         "execucao_decorrida_dias":   exe_dec,
         "execucao_restante_dias":    exe_rest,
         "execucao_decorrida_texto":  f"{exe_dec} dias decorridos",
         "execucao_restante_texto":   f"{exe_rest} dias restantes",
+        "execucao_meses_decorridos": _exe_meses_dec,
+        "execucao_meses_total":      _exe_meses_tot,
 
         "nova_data_termino":         tend["nova_data_termino"],
         "tendencia_duracao_texto":   f"Nova duração: {tend['nova_duracao_dias']} dias ({tend['nova_duracao_meses']:.1f} meses)",
@@ -235,7 +285,7 @@ def _build_data(config: dict, df_eap: pd.DataFrame, df_totais: pd.DataFrame) -> 
             pct_medido = None
             val_medido = 0.0
         cronograma.append({
-            "mes_label":                      f"M{mes_num:02d}",
+            "mes_label":                      f"M{mes_num}",
             "percentual_planejado_acumulado":  float(vp_acum) / valor_contrato if (valor_contrato and pd.notna(vp_acum)) else 0,
             "percentual_medido_acumulado":     pct_medido,
             "valor_medido_acumulado":          val_medido,
@@ -739,7 +789,7 @@ def inject_css():
 
         .etapa-row {
             display: grid;
-            grid-template-columns: 28px 1fr 115px 100px 120px;
+            grid-template-columns: 28px minmax(0,1fr) 115px 100px 120px;
             gap: 10px;
             align-items: center;
             padding: 10px 0;
@@ -769,6 +819,9 @@ def inject_css():
             font-size: 13px;
             color: var(--text);
             font-weight: 500;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            min-width: 0;
         }
 
         .etapa-valor {
@@ -1637,6 +1690,56 @@ def plot_financeiro(data: dict):
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
+def plot_valor_etapas(data: dict):
+    """Gráfico de barras agrupadas: Valor Total vs Medido Acumulado por etapa."""
+    etapas = data["etapas"]
+    etapas_com_valor = [e for e in etapas if e["valor_total"] > 0]
+    if not etapas_com_valor:
+        return
+
+    # Abreviar nomes longos
+    def _abbrev(n, max_chars=22):
+        return n if len(n) <= max_chars else n[:max_chars - 1] + "…"
+
+    nomes  = [_abbrev(e["nome"]) for e in etapas_com_valor]
+    totais = [e["valor_total"] for e in etapas_com_valor]
+    medido = [e["valor_medido_acumulado"] for e in etapas_com_valor]
+    pct_ac = [as_percent(e["percentual_acumulado"]) for e in etapas_com_valor]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name="Valor Contratual",
+        x=nomes, y=totais,
+        marker_color="rgba(46,109,164,0.30)",
+        hovertemplate="%{x}<br>Contratual: R$ %{y:,.2f}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        name="Medido Acumulado",
+        x=nomes, y=medido,
+        marker_color="rgba(45,155,99,0.80)",
+        text=[f"{v:.1f}%" for v in pct_ac],
+        textposition="outside",
+        textfont=dict(size=9, color="#1D6B3E"),
+        hovertemplate="%{x}<br>Medido: R$ %{y:,.2f}<extra></extra>",
+    ))
+
+    n = len(etapas_com_valor)
+    altura = max(260, n * 30 + 120)
+    fig.update_layout(**base_layout(
+        "VALOR TOTAL POR ETAPA — CONTRATUAL VS. MEDIDO", altura,
+        dict(
+            barmode="group",
+            yaxis=dict(tickprefix="R$ ", tickformat=".2s", gridcolor="rgba(0,0,0,0.05)"),
+            xaxis=dict(showgrid=False, tickangle=-30 if n > 4 else 0),
+            legend=dict(orientation="h", y=-0.22, x=0.5, xanchor="center",
+                        font=dict(size=11, color="#6B6860")),
+            showlegend=True,
+            margin=dict(l=12, r=12, t=48, b=80),
+        ),
+    ))
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+
 # =============================================================================
 # COMPONENTES
 # =============================================================================
@@ -1686,10 +1789,35 @@ def render_kpis(data: dict):
         )
 
     with cols[1]:
+        # ── KPI: Valor Medido Acumulado (Obras + Projetos) ──
+        proj_info_kpi = _get_proj_saldo_info()
+        v_obras_med   = med["valor_medido_acumulado"]
+        v_obras_total = data["valor_contrato"]
+
+        if proj_info_kpi["montante"] is not None:
+            v_proj_total  = proj_info_kpi["montante"]
+            v_proj_pago   = v_proj_total - (proj_info_kpi["saldo"] or 0)
+            v_total_med   = v_obras_med + v_proj_pago
+            v_total_cont  = v_obras_total + v_proj_total
+            pct_exec_total = v_total_med / v_total_cont if v_total_cont else 0
+            sub_txt = (
+                f'Obras: <strong>{fmt_money(v_obras_med)}</strong> · '
+                f'Projetos: <strong>{fmt_money(v_proj_pago)}</strong><br>'
+                f'{fmt_percent(pct_exec_total)} do contrato total executado'
+            )
+            val_display = fmt_money(v_total_med)
+        else:
+            pct_exec_total = med["avanco_fisico_acumulado"]
+            sub_txt = (
+                f'Somente obras · {fmt_percent(pct_exec_total)} executado<br>'
+                f'<span style="color:var(--text3);font-size:10px;">Projetos: preencha na aba Upload EAP</span>'
+            )
+            val_display = fmt_money(v_obras_med)
+
         kpi(
             "Valor Medido Acumulado",
-            fmt_money(med["valor_medido_acumulado"]),
-            f'{fmt_percent(med["avanco_fisico_acumulado"])} do contrato executado',
+            val_display,
+            sub_txt,
             f'{med["medicao_atual"]}ª Medição',
             "blue", small=True,
         )
@@ -1902,7 +2030,7 @@ def render_etapas_table(data: dict, min_h: int = 0):
             return "Normal", "var(--accent2)", "var(--blue-bg)"
  
     header = """
-    <div style="display:grid;grid-template-columns:28px 1fr 115px 115px 115px 72px;
+    <div style="display:grid;grid-template-columns:28px minmax(0,1fr) 115px 115px 115px 72px;
                 gap:8px;padding:0 0 8px;border-bottom:2px solid var(--border);margin-bottom:2px;">
         <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;"></span>
         <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;">Etapa</span>
@@ -1923,10 +2051,10 @@ def render_etapas_table(data: dict, min_h: int = 0):
         muted = "color:var(--text3);" if pct_ac == 0 else ""
  
         rows_html += f"""
-        <div style="display:grid;grid-template-columns:28px 1fr 115px 115px 115px 72px;
+        <div style="display:grid;grid-template-columns:28px minmax(0,1fr) 115px 115px 115px 72px;
                     gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);">
             <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text3);">{e["item"]:02d}</span>
-            <span style="font-size:12px;color:var(--text);font-weight:500;{muted}">{e["nome"]}</span>
+            <span style="font-size:12px;color:var(--text);font-weight:500;overflow-wrap:break-word;word-break:break-word;min-width:0;{muted}">{e["nome"]}</span>
             <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text2);text-align:right;">{fmt_money(vt)}</span>
             <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--green);text-align:right;">{fmt_money(vm_acum)}</span>
             <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);text-align:right;">{fmt_money(saldo)}</span>
@@ -2030,64 +2158,242 @@ def render_fin_summary(data: dict):
 
 
 def render_fin_composition(data: dict):
-    """Composição financeira por etapa — valores acumulados reais da EAP."""
+    """Composição financeira por etapa — expanders HTML nativos (<details>/<summary>)."""
     df_eap    = data["_df_eap"]
     med_atual = data["medicoes"]["medicao_atual"]
     df_orc    = data["_config"]["eap_orcamento"].copy()
 
-    # Linhas da medição atual, nível 1 (sem ponto no item)
-    df_at = df_eap[(df_eap["medicao"] == med_atual)].copy()
-    df_at = df_at[df_at["item"].apply(lambda x: x is not None and "." not in str(x))]
+    def _nivel(item_val) -> int:
+        if item_val is None:
+            return 0
+        return str(item_val).count(".")
 
-    # Para o preço total real de cada etapa, usar df_eap (col preco_total_rs = EAP col E)
-    # que tem o valor contratual correto por etapa
-    df_preco = df_eap[df_eap["item"].apply(
-        lambda x: x is not None and "." not in str(x)
-    )].drop_duplicates(subset=["item"])[["item", "preco_total_rs"]]
+    def _status_badge(pct_ac: float) -> str:
+        if pct_ac >= 1.0:
+            return ('<span style="font-size:9px;font-weight:600;padding:2px 6px;border-radius:8px;'
+                    'background:var(--green-bg);color:var(--green);">Concl.</span>')
+        elif pct_ac > 0:
+            return ('<span style="font-size:9px;font-weight:500;padding:2px 6px;border-radius:8px;'
+                    'background:var(--blue-bg);color:var(--accent2);">Em and.</span>')
+        else:
+            return ('<span style="font-size:9px;color:var(--text3);padding:2px 6px;'
+                    'border-radius:8px;background:var(--surface2);">Pendente</span>')
 
-    COLOR = {0: "#2D9B63", 1: "#2E6DA4", 2: "#D4910E"}
+    # dados base
+    df_at = df_eap[df_eap["medicao"] == med_atual].copy()
+    at_map: dict = {}
+    for _, r in df_at.iterrows():
+        k = str(r["item"]) if r["item"] is not None else None
+        if k:
+            at_map[k] = {
+                "pct_acumulado": float(r["pct_acumulado"]) if pd.notna(r.get("pct_acumulado")) else 0.0,
+                "pct_mes":       float(r["pct_mes"])       if pd.notna(r.get("pct_mes"))       else 0.0,
+            }
+
+    df_todos = df_eap.drop_duplicates(subset=["item"])[["item", "descricao", "preco_total_rs"]].copy()
+    todos_map: dict = {}
+    for _, r in df_todos.iterrows():
+        k = str(r["item"]) if r["item"] is not None else None
+        if k:
+            todos_map[k] = {
+                "descricao":      str(r.get("descricao") or "").strip(),
+                "preco_total_rs": float(r["preco_total_rs"]) if pd.notna(r.get("preco_total_rs")) else 0.0,
+            }
+
+    def _sort_key(s):
+        try: return tuple(int(p) for p in s.split("."))
+        except: return (9999,)
+
+    all_items_sorted = sorted(todos_map.keys(), key=_sort_key)
+    COLORS = ["#2D9B63", "#2E6DA4", "#D4910E", "#B05CC0", "#607D8B"]
+    COL_GRID = "64px minmax(0,1fr) 118px 80px 118px 62px"
+
+    # CSS para os <details> — injetado uma vez
+    st.html("""
+    <style>
+    .eap-details {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 10px;
+        overflow: hidden;
+    }
+    .eap-summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 0;
+        margin: 0;
+    }
+    .eap-summary::-webkit-details-marker { display: none; }
+    .eap-summary::marker { display: none; }
+    .eap-details[open] .eap-chevron { transform: rotate(90deg); }
+    .eap-chevron {
+        display: inline-block;
+        transition: transform 0.2s;
+        font-size: 11px;
+        margin-right: 6px;
+        color: var(--text3);
+    }
+    </style>
+    """)
+
     blocks = ""
     count  = 0
 
-    for i, row_orc in df_orc.iterrows():
-        item_id = row_orc["item"]
+    for ei, row_orc in df_orc.iterrows():
+        etapa_id  = str(row_orc["item"])
+        etapa_cor = COLORS[ei % len(COLORS)]
+
+        at1    = at_map.get(etapa_id, {})
+        pct_ac = at1.get("pct_acumulado", 0.0)
+        info_n1 = todos_map.get(etapa_id, {})
+        vt = info_n1.get("preco_total_rs", 0.0)
+        if vt == 0.0:
+            vt = float(row_orc["valor_rs"] or 0) if pd.notna(row_orc.get("valor_rs")) else 0.0
         nome    = row_orc["descricao"]
-
-        # Pegar preço total da EAP (correto) — fallback para CONFIG valor_rs
-        r_preco = df_preco[df_preco["item"] == item_id]
-        if len(r_preco) and pd.notna(r_preco["preco_total_rs"].iloc[0]):
-            vt = float(r_preco["preco_total_rs"].iloc[0])
-        else:
-            vt = float(row_orc["valor_rs"] or 0) if pd.notna(row_orc["valor_rs"]) else 0.0
-
-        r_at = df_at[df_at["item"] == item_id]
-        if len(r_at) and pd.notna(r_at["pct_acumulado"].iloc[0]):
-            pct_ac  = float(r_at["pct_acumulado"].iloc[0])
-        else:
-            pct_ac  = 0.0
-        # Valor acumulado = % acumulado × preço total da etapa
         vm_acum = vt * pct_ac
         saldo   = max(vt - vm_acum, 0)
-        color   = COLOR.get(i, "#B0ADA6")
+        bar_w   = min(pct_ac * 100, 100)
+
+        if pct_ac >= 1.0:
+            status_label = "Concluida"
+            status_color = "var(--green)"
+        elif pct_ac > 0:
+            status_label = fmt_percent(pct_ac)
+            status_color = etapa_cor
+        else:
+            status_label = "Pendente"
+            status_color = "var(--text3)"
+
+        # subitens
+        prefix       = etapa_id + "."
+        descendentes = [k for k in all_items_sorted if k.startswith(prefix)]
+
+        sub_rows = ""
+        if descendentes:
+            sub_rows += f"""
+            <div style="padding:0 16px 12px;">
+                <div style="display:grid;grid-template-columns:{COL_GRID};gap:6px;
+                            padding:5px 0 7px 0;border-bottom:2px solid var(--border);margin-bottom:2px;">
+                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;">Item</span>
+                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;">Descricao</span>
+                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right;">Valor Total</span>
+                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right;">% Acum.</span>
+                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:right;">Medido Acum.</span>
+                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:center;">Status</span>
+                </div>"""
+
+            for item_str in descendentes:
+                nivel  = _nivel(item_str)
+                indent = (nivel - 1) * 14
+                info   = todos_map.get(item_str, {})
+                s_nome = info.get("descricao", "") or "—"
+                s_vt   = info.get("preco_total_rs", 0.0)
+                s_at   = at_map.get(item_str, {})
+                s_pct  = s_at.get("pct_acumulado", 0.0)
+                s_vm   = s_vt * s_pct
+
+                if nivel == 1:
+                    nome_style  = "font-size:11px;font-weight:600;color:var(--text);"
+                    item_style  = "font-size:10px;font-family:'DM Mono',monospace;color:var(--text2);"
+                    row_bg      = "background:var(--surface);"
+                    left_border = f"border-left:3px solid {etapa_cor};"
+                elif nivel == 2:
+                    nome_style  = "font-size:10px;font-weight:500;color:var(--text2);"
+                    item_style  = "font-size:9px;font-family:'DM Mono',monospace;color:var(--text3);"
+                    row_bg      = "background:var(--surface2);"
+                    left_border = f"border-left:2px solid {etapa_cor}55;"
+                else:
+                    nome_style  = "font-size:10px;color:var(--text3);font-style:italic;"
+                    item_style  = "font-size:9px;font-family:'DM Mono',monospace;color:var(--text3);"
+                    row_bg      = "background:var(--surface2);"
+                    left_border = "border-left:1px solid var(--border);"
+
+                pct_style = "color:var(--green);font-weight:600;" if s_pct > 0 else "color:var(--text3);"
+
+                sub_rows += f"""
+                <div style="display:grid;grid-template-columns:{COL_GRID};gap:6px;
+                            align-items:center;padding:6px 8px;
+                            border-bottom:1px solid var(--border);{row_bg}{left_border}">
+                    <span style="{item_style}padding-left:{indent}px;">{item_str}</span>
+                    <span style="{nome_style}overflow-wrap:break-word;word-break:break-word;
+                                 min-width:0;padding-left:{indent}px;">{s_nome}</span>
+                    <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text2);
+                                 text-align:right;">{fmt_money(s_vt) if s_vt else "—"}</span>
+                    <span style="font-size:10px;font-family:'DM Mono',monospace;{pct_style}text-align:right;">
+                        {fmt_percent(s_pct) if s_pct > 0 else "—"}</span>
+                    <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--green);
+                                 text-align:right;">{fmt_money(s_vm) if s_pct > 0 else "—"}</span>
+                    <div style="text-align:center;">{_status_badge(s_pct)}</div>
+                </div>"""
+
+            sub_rows += "</div>"
 
         blocks += f"""
-        <div style="padding:14px;background:var(--surface2);border-radius:8px;border-left:4px solid {color};">
-            <div class="kpi-label">{nome}</div>
-            <div class="kpi-value small">{fmt_money(vm_acum)}</div>
-            <div class="kpi-sub">{fmt_percent(pct_ac)} acumulado · saldo {fmt_money(saldo)}</div>
-        </div>
+        <details class="eap-details" style="border-top:3px solid {etapa_cor};">
+            <summary class="eap-summary">
+                <div style="display:grid;grid-template-columns:minmax(0,1fr) 130px 140px 110px 28px;
+                            gap:10px;align-items:center;padding:13px 14px;">
+                    <div style="min-width:0;">
+                        <div style="font-size:9px;font-weight:700;color:{etapa_cor};
+                                    text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px;">
+                            Etapa {etapa_id}
+                        </div>
+                        <div style="font-size:12px;font-weight:600;color:var(--text);
+                                    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            {nome}
+                        </div>
+                        <div style="height:4px;background:rgba(0,0,0,0.07);border-radius:2px;
+                                    overflow:hidden;margin-top:5px;">
+                            <div style="height:100%;width:{bar_w:.1f}%;background:{etapa_cor};
+                                        border-radius:2px;"></div>
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:8px;color:var(--text3);text-transform:uppercase;
+                                    letter-spacing:0.5px;margin-bottom:2px;">Valor Total</div>
+                        <div style="font-size:11px;font-family:'DM Mono',monospace;
+                                    color:var(--text2);">{fmt_money(vt)}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:8px;color:var(--text3);text-transform:uppercase;
+                                    letter-spacing:0.5px;margin-bottom:2px;">Medido Acum.</div>
+                        <div style="font-size:12px;font-family:'DM Mono',monospace;
+                                    font-weight:700;color:{etapa_cor};">{fmt_money(vm_acum)}</div>
+                        <div style="font-size:9px;color:var(--text3);margin-top:1px;">
+                            {fmt_percent(pct_ac)} executado</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:8px;color:var(--text3);text-transform:uppercase;
+                                    letter-spacing:0.5px;margin-bottom:2px;">Saldo</div>
+                        <div style="font-size:11px;font-family:'DM Mono',monospace;
+                                    color:var(--accent2);">{fmt_money(saldo)}</div>
+                        <div style="font-size:9px;margin-top:1px;color:{status_color};">
+                            {status_label}</div>
+                    </div>
+                    <div style="text-align:center;font-size:14px;color:var(--text3);">
+                        <span class="eap-chevron">&#9658;</span>
+                    </div>
+                </div>
+            </summary>
+            {sub_rows}
+        </details>
         """
         count += 1
 
     if count == 0:
-        card("Composição Financeira por Etapa", "<p>Nenhuma etapa com dados disponíveis.</p>")
+        st.html('<p style="font-size:12px;color:var(--text3);">Nenhuma etapa com dados disponíveis.</p>')
         return
 
-    cols = min(count, 4)
-    card(
-        "Composição Financeira por Etapa",
-        f'<div style="display:grid;grid-template-columns:repeat({cols},1fr);gap:12px;">{blocks}</div>',
-    )
+    titulo = """
+    <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;
+                letter-spacing:0.8px;margin-bottom:12px;padding-bottom:6px;
+                border-bottom:2px solid var(--border);">
+        Composição Financeira por Etapa — EAP
+    </div>
+    """
+    st.html(titulo + blocks)
+
 
 
 def _gerar_analise_idp(idp_val: float, prazos: dict) -> str:
@@ -2137,11 +2443,15 @@ def render_prazos_progress(data: dict, return_markup: bool = False):
     vig_total = p["vigencia_total_dias"]
     vig_rest  = p["vigencia_restante_dias"]
     vig_pct   = vig_dec / vig_total if vig_total else 0
+    vig_m_dec = p.get("vigencia_meses_decorridos", round(vig_dec / 30.44))
+    vig_m_tot = p.get("vigencia_meses_total", round(vig_total / 30.44))
 
     exe_dec   = p["execucao_decorrida_dias"]
     exe_total = p["execucao_total_dias"]
     exe_rest  = p["execucao_restante_dias"]
     exe_pct   = exe_dec / exe_total if exe_total else 0
+    exe_m_dec = p.get("execucao_meses_decorridos", round(exe_dec / 30.44))
+    exe_m_tot = p.get("execucao_meses_total", round(exe_total / 30.44))
 
     idp     = data["idp"]
     idp_val = idp["valor"]
@@ -2159,9 +2469,12 @@ def render_prazos_progress(data: dict, return_markup: bool = False):
 
     body = f"""
     <div style="margin-bottom:20px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
             <span style="font-size:12px;color:var(--text2);font-weight:500;">Vigência do Contrato</span>
             <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text);">{vig_dec} / {vig_total} dias</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">
+            <strong style="color:var(--text2);">{vig_m_dec} de {vig_m_tot} meses</strong> decorridos &nbsp;·&nbsp; {vig_m_tot - vig_m_dec} meses restantes
         </div>
         <div class="prazo-track">
             <div class="prazo-decorrido" style="width:{vig_pct * 100:.1f}%">
@@ -2175,9 +2488,12 @@ def render_prazos_progress(data: dict, return_markup: bool = False):
     </div>
 
     <div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
             <span style="font-size:12px;color:var(--text2);font-weight:500;">Prazo de Execução da Obra</span>
             <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text);">{exe_dec} / {exe_total} dias</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">
+            <strong style="color:var(--text2);">{exe_m_dec} de {exe_m_tot} meses</strong> decorridos &nbsp;·&nbsp; {exe_m_tot - exe_m_dec} meses restantes
         </div>
         <div class="prazo-track">
             <div class="prazo-decorrido" style="width:{exe_pct * 100:.1f}%;background:var(--accent)">
@@ -2206,31 +2522,89 @@ def render_prazos_progress(data: dict, return_markup: bool = False):
 
 
 def render_timeline(data: dict, return_markup: bool = False):
-    p   = data["prazos"]
-    idp = data["idp"]
+    """
+    Exibe os marcos cadastrados na sub-aba Marcos do Upload EAP.
+    Se não houver marcos cadastrados, exibe mensagem orientando o usuário.
+    """
+    df_marcos = _carregar_marcos()
 
-    items = [
-        ("green", "Prazo de Vigência",    p["prazo_vigencia_data"],  p["vigencia_decorrida_texto"],  "green"),
-        ("green", "Vigência Restante",     "CONFIG · vigência",       p["vigencia_restante_texto"],   "green"),
-        ("blue",  "Prazo de Execução",     p["prazo_execucao_data"],  p["execucao_decorrida_texto"],  "blue"),
-        ("blue",  "Execução Restante",     "CONFIG · execução",       p["execucao_restante_texto"],   "blue"),
-        ("green", "IDP",                   "CONFIG · M27",            fmt_decimal(idp["valor"]),       "green"),
-        ("gray",  "Status",                "—",                       idp["status"],                   "default"),
-    ]
+    _STATUS_DOT = {
+        "Concluído":    "green",
+        "Emitida":      "green",
+        "Em andamento": "blue",
+        "Previsto":     "blue",
+        "Pendente":     "gray",
+        "Atrasado":     "gray",
+        "Cancelado":    "gray",
+    }
+    _STATUS_STYLE = {
+        "Concluído":    "color:var(--green);font-weight:600;",
+        "Emitida":      "color:var(--green);font-weight:600;",
+        "Em andamento": "color:var(--accent2);font-weight:600;",
+        "Previsto":     "color:var(--accent2);font-weight:500;",
+        "Atrasado":     "color:var(--red);font-weight:600;",
+        "Pendente":     "color:var(--text3);",
+        "Cancelado":    "color:var(--text3);text-decoration:line-through;",
+    }
 
-    body = ""
-    for dot, title, meta, value, color in items:
-        cls = "text-green" if color == "green" else "text-blue" if color == "blue" else ""
-        body += f"""
-        <div class="timeline-item">
-            <div class="tl-dot tl-dot-{dot}"></div>
-            <div class="tl-content">
-                <div class="tl-title">{title}</div>
-                <div class="tl-meta">{meta}</div>
+    if len(df_marcos) == 0 or df_marcos["descricao"].eq("").all():
+        body = """
+        <div style="padding:20px 0;text-align:center;">
+            <div style="font-size:28px;margin-bottom:10px;">📋</div>
+            <div style="font-size:13px;color:var(--text2);font-weight:500;margin-bottom:6px;">
+                Nenhum marco cadastrado
             </div>
-            <div class="tl-val {cls}">{value}</div>
+            <div style="font-size:12px;color:var(--text3);line-height:1.6;">
+                Acesse <strong>Upload EAP → Marcos</strong> para adicionar<br>
+                os marcos do cronograma da obra.
+            </div>
         </div>
         """
+    else:
+        body = ""
+        for _, row in df_marcos.iterrows():
+            descricao    = str(row.get("descricao", "")).strip()
+            if not descricao:
+                continue
+            tipo         = str(row.get("tipo", "")).strip()
+            data_prev    = str(row.get("data_prevista", "")).strip()
+            data_real    = str(row.get("data_realizada", "")).strip()
+            status       = str(row.get("status", "Pendente")).strip()
+            idp_val_str  = str(row.get("idp", "")).strip()
+            observacoes  = str(row.get("observacoes", "")).strip()
+
+            dot_color = _STATUS_DOT.get(status, "gray")
+            val_style = _STATUS_STYLE.get(status, "")
+
+            # linha de meta: tipo + data prevista / realizada
+            meta_parts = []
+            if tipo and tipo not in ("nan", ""):
+                meta_parts.append(tipo)
+            if data_prev and data_prev not in ("nan", ""):
+                meta_parts.append(f"Previsto: {data_prev}")
+            if data_real and data_real not in ("nan", ""):
+                meta_parts.append(f"Realizado: {data_real}")
+            if idp_val_str and idp_val_str not in ("nan", ""):
+                meta_parts.append(f"IDP: {idp_val_str}")
+            meta_str = " &nbsp;·&nbsp; ".join(meta_parts) if meta_parts else "—"
+
+            obs_html = (
+                f'<div style="font-size:10px;color:var(--text3);margin-top:2px;">{observacoes}</div>'
+                if observacoes and observacoes not in ("nan", "") else ""
+            )
+
+            body += f"""
+            <div class="timeline-item">
+                <div class="tl-dot tl-dot-{dot_color}"></div>
+                <div class="tl-content">
+                    <div class="tl-title">{descricao}</div>
+                    <div class="tl-meta">{meta_str}</div>
+                    {obs_html}
+                </div>
+                <div class="tl-val" style="{val_style}">{status}</div>
+            </div>
+            """
+
     markup = card_markup("Cronograma de Marcos", body, "prazos-equal-card")
     if return_markup:
         return markup
@@ -2273,17 +2647,26 @@ def tab_visao(data: dict):
 
 
 def render_ultimos_servicos(data: dict):
-    """Card: últimos serviços concluídos na medição atual em ordem cronológica."""
+    """Card: serviços com evolução na medição atual, com % anterior, % atual e avanço mês."""
     df_eap    = data["_df_eap"]
     med_atual = data["medicoes"]["medicao_atual"]
+    med_ant   = med_atual - 1
     MESES_PT  = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
     import datetime as _dt
 
-    # Itens com percentual de mês > 0 na medição atual (alguma evolução)
+    # Itens com percentual de mês > 0 na medição atual
     df_med = df_eap[df_eap["medicao"] == med_atual].copy()
     df_med = df_med[df_med["pct_mes"].notna() & (df_med["pct_mes"] > 0)]
 
-    # Ordenar por número de item hierarquicamente (1 < 1.3 < 1.4 < 2 < 3 < 3.1.1.1...)
+    # Medição anterior para buscar % acumulado anterior
+    df_ant = df_eap[df_eap["medicao"] == med_ant].copy() if med_ant >= 1 else pd.DataFrame()
+    # índice: item → pct_acumulado
+    ant_map = {}
+    if len(df_ant) > 0:
+        for _, r in df_ant.iterrows():
+            if r["item"] is not None and pd.notna(r["pct_acumulado"]):
+                ant_map[r["item"]] = float(r["pct_acumulado"]) * 100
+
     def _item_sort_key(item_val):
         if item_val is None:
             return (999,)
@@ -2296,7 +2679,6 @@ def render_ultimos_servicos(data: dict):
     df_med["_sort_key"] = df_med["item"].apply(_item_sort_key)
     df_med_sorted = df_med.sort_values("_sort_key")
 
-    # Pegar data de referência da medição atual
     row_ref = data["_df_totais"][data["_df_totais"]["medicao"] == med_atual]
     data_med = ""
     if len(row_ref) and row_ref["data_ref"].iloc[0] and isinstance(row_ref["data_ref"].iloc[0], _dt.date):
@@ -2304,47 +2686,53 @@ def render_ultimos_servicos(data: dict):
         data_med = f"{MESES_PT[d.month-1]}/{d.year}"
 
     if len(df_med_sorted) == 0:
-        return  # Nada a mostrar
+        return
 
-    itens = df_med_sorted.head(20)  # limita a 20 itens
+    itens = df_med_sorted.head(20)
 
     rows_html = ""
     for _, row in itens.iterrows():
         item_id   = row["item"] if row["item"] is not None else "—"
         descricao = row["descricao"] or "—"
-        pct_mes   = float(row["pct_mes"]) * 100 if pd.notna(row["pct_mes"]) else 0
-        pct_acum  = float(row["pct_acumulado"]) * 100 if pd.notna(row["pct_acumulado"]) else 0
+        pct_acum  = float(row["pct_acumulado"]) * 100 if pd.notna(row["pct_acumulado"]) else 0.0
+        pct_prev  = ant_map.get(row["item"], 0.0)
+        avanco    = pct_acum - pct_prev
         concluido = pct_acum >= 100.0
 
-        badge = ""
-        if concluido:
-            badge = '<span style="display:inline-block;padding:2px 7px;border-radius:10px;background:var(--green-bg);color:var(--green);font-size:10px;font-weight:600;">✓ Concluído</span>'
-        else:
-            badge = f'<span style="display:inline-block;padding:2px 7px;border-radius:10px;background:var(--blue-bg);color:var(--accent2);font-size:10px;font-weight:500;">Em andamento</span>'
+        badge = (
+            '<span style="display:inline-block;padding:2px 7px;border-radius:10px;'
+            'background:var(--green-bg);color:var(--green);font-size:10px;font-weight:600;">✓ Concluído</span>'
+            if concluido else
+            '<span style="display:inline-block;padding:2px 7px;border-radius:10px;'
+            'background:var(--blue-bg);color:var(--accent2);font-size:10px;font-weight:500;">Em andamento</span>'
+        )
 
         rows_html += f"""
-        <div style="display:grid;grid-template-columns:48px 1fr 90px 95px 80px;gap:10px;align-items:center;
+        <div style="display:grid;grid-template-columns:48px 1fr 95px 90px 90px 90px;gap:10px;align-items:center;
                     padding:9px 0;border-bottom:1px solid var(--border);">
             <span style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">{item_id}</span>
             <span style="font-size:12px;color:var(--text);font-weight:500;">{descricao}</span>
             {badge}
-            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--green);text-align:right;">+{pct_mes:.2f}%</span>
-            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text);text-align:right;">{pct_acum:.2f}% acum.</span>
+            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text3);text-align:right;">{pct_prev:.2f}%</span>
+            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text);text-align:right;">{pct_acum:.2f}%</span>
+            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--green);text-align:right;">+{avanco:.2f}%</span>
         </div>
         """
 
+    med_ant_label = f"Med. {med_ant}" if med_ant >= 1 else "Início"
     header = f"""
-    <div style="display:grid;grid-template-columns:48px 1fr 90px 95px 80px;gap:10px;
+    <div style="display:grid;grid-template-columns:48px 1fr 95px 90px 90px 90px;gap:10px;
                 padding:0 0 8px;border-bottom:2px solid var(--border);margin-bottom:2px;">
         <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;">Item</span>
         <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;">Serviço / Descrição</span>
         <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;">Status</span>
-        <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;text-align:right;">Avanço Mês</span>
-        <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;text-align:right;">% Acumulado</span>
+        <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;text-align:right;">% {med_ant_label}</span>
+        <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;text-align:right;">% Med. {med_atual}</span>
+        <span style="font-size:10px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:0.6px;text-align:right;">Avanço Mês</span>
     </div>
     """
 
-    legenda = f'<div style="font-size:11px;color:var(--text3);margin-top:12px;">Medição {med_atual} · {data_med} · {len(itens)} serviços com evolução nesta medição</div>'
+    legenda = f'<div style="font-size:11px;color:var(--text3);margin-top:12px;">Medição {med_atual} · {data_med} · {len(itens)} serviços com evolução nesta medição · Avanço Mês = % Med.{med_atual} − % Med.{med_ant_label}</div>'
 
     card(
         f"Detalhamento — Serviços com Evolução na {med_atual}ª Medição",
@@ -2361,6 +2749,8 @@ def tab_fisico(data: dict):
         plot_medicoes(data)
         spacer(22)
         plot_barras_etapas(data)
+    spacer(22)
+    plot_valor_etapas(data)
     spacer(22)
     render_ultimos_servicos(data)
 
@@ -2506,31 +2896,34 @@ def tab_prazos(data: dict):
     cfg = data["_config"]
     tend = cfg["tendencia"]
 
-    # Prazo de execução: usar nova_duracao_meses da CONFIG, arredondado para baixo
     import math as _math
-    nova_dur_meses = tend.get("nova_duracao_meses")
-    if nova_dur_meses is not None and not (isinstance(nova_dur_meses, float) and pd.isna(nova_dur_meses)):
-        exec_meses_label = f"{int(_math.floor(float(nova_dur_meses)))} meses"
-    else:
-        exe_meses = int(_math.floor(p["execucao_total_dias"] / 30.44))
-        exec_meses_label = f"{exe_meses} meses"
 
-    vig_meses = round(p["vigencia_total_dias"] / 30.44)
+    # Prazo de execução: 36 meses fixo (conforme contrato)
+    exe_meses_total = p.get("execucao_meses_total") or int(_math.floor(p["execucao_total_dias"] / 30.44))
+    exe_meses_dec   = p.get("execucao_meses_decorridos", 0)
+    exe_meses_rest  = max(exe_meses_total - exe_meses_dec, 0)
+    exec_meses_label = f"{exe_meses_total} meses"
+
+    vig_meses_total = p.get("vigencia_meses_total") or round(p["vigencia_total_dias"] / 30.44)
+    vig_meses_dec   = p.get("vigencia_meses_decorridos", 0)
+    vig_meses_rest  = max(vig_meses_total - vig_meses_dec, 0)
 
     cols = st.columns(3, gap="small")
     with cols[0]:
         kpi(
             "Prazo de Execução",
             exec_meses_label,
-            f'OS: {fmt_date(cfg["execucao"]["inicio"])} → {p["prazo_execucao_data"]}',
+            f'OS: {fmt_date(cfg["execucao"]["inicio"])} → {p["prazo_execucao_data"]}<br>'
+            f'<strong>{exe_meses_dec} mês(es) decorrido(s)</strong> · {exe_meses_rest} restante(s)',
             p["execucao_restante_texto"],
             "blue", small=True,
         )
     with cols[1]:
         kpi(
             "Prazo de Vigência",
-            f"{int(vig_meses)} meses",
-            f'{fmt_date(cfg["vigencia"]["inicio"])} → {p["prazo_vigencia_data"]}',
+            f"{vig_meses_total} meses",
+            f'{fmt_date(cfg["vigencia"]["inicio"])} → {p["prazo_vigencia_data"]}<br>'
+            f'<strong>{vig_meses_dec} mês(es) decorrido(s)</strong> · {vig_meses_rest} restante(s)',
             p["vigencia_restante_texto"],
             "blue", small=True,
         )
@@ -2677,6 +3070,29 @@ def _carregar_pagamentos_projetos() -> pd.DataFrame:
     ])
 
 
+def _carregar_marcos() -> "pd.DataFrame":
+    """Carrega marcos cadastrados (aba Marcos) do Excel persistente."""
+    p = _projetos_excel_path()
+    if p.exists():
+        try:
+            return pd.read_excel(p, sheet_name="Marcos", dtype=str)
+        except Exception:
+            pass
+    return pd.DataFrame(columns=[
+        "descricao", "tipo", "data_prevista", "data_realizada", "status", "idp", "observacoes"
+    ])
+
+
+def _salvar_marcos(df_marcos: "pd.DataFrame"):
+    """Salva a aba Marcos preservando Resumo e Pagamentos."""
+    df_resumo = _carregar_registros_projetos()
+    df_pags   = _carregar_pagamentos_projetos()
+    with pd.ExcelWriter(_projetos_excel_path(), engine="openpyxl") as _w:
+        df_resumo.to_excel(_w, sheet_name="Resumo",     index=False)
+        df_pags.to_excel(_w,   sheet_name="Pagamentos", index=False)
+        df_marcos.to_excel(_w, sheet_name="Marcos",     index=False)
+
+
 def _salvar_somente_resumo(registro: dict, pagamentos: list):
     """Salva apenas a aba Resumo, preservando a aba Pagamentos existente."""
     df_resumo = _carregar_registros_projetos()
@@ -2707,6 +3123,7 @@ def _salvar_somente_resumo(registro: dict, pagamentos: list):
     with pd.ExcelWriter(_projetos_excel_path(), engine="openpyxl") as writer:
         df_resumo_final.to_excel(writer, sheet_name="Resumo",     index=False)
         df_pags.to_excel(writer,         sheet_name="Pagamentos", index=False)
+        _carregar_marcos().to_excel(writer, sheet_name="Marcos",  index=False)
 
 
 def _salvar_somente_pagamentos(med_str: str, pagamentos: list):
@@ -2747,6 +3164,7 @@ def _salvar_somente_pagamentos(med_str: str, pagamentos: list):
     with pd.ExcelWriter(_projetos_excel_path(), engine="openpyxl") as writer:
         df_resumo.to_excel(writer,       sheet_name="Resumo",     index=False)
         df_pags_final.to_excel(writer,   sheet_name="Pagamentos", index=False)
+        _carregar_marcos().to_excel(writer, sheet_name="Marcos",  index=False)
 
 
 def _salvar_registro_projeto(registro: dict, pagamentos: list):
@@ -2808,6 +3226,7 @@ def _salvar_registro_projeto(registro: dict, pagamentos: list):
     with pd.ExcelWriter(_projetos_excel_path(), engine="openpyxl") as writer:
         df_resumo_final.to_excel(writer, sheet_name="Resumo",     index=False)
         df_pags_final.to_excel(writer,   sheet_name="Pagamentos", index=False)
+        _carregar_marcos().to_excel(writer, sheet_name="Marcos",  index=False)
 
 
 def _medicao_ja_existe(medicao_num: int) -> bool:
@@ -2831,6 +3250,7 @@ def _excluir_resumo(med_str: str):
     with pd.ExcelWriter(_projetos_excel_path(), engine="openpyxl") as writer:
         df_resumo.to_excel(writer, sheet_name="Resumo",     index=False)
         df_pags.to_excel(writer,   sheet_name="Pagamentos", index=False)
+        _carregar_marcos().to_excel(writer, sheet_name="Marcos",  index=False)
 
 
 def _excluir_pagamento(med_str: str, etapa_str: str):
@@ -2845,6 +3265,7 @@ def _excluir_pagamento(med_str: str, etapa_str: str):
     with pd.ExcelWriter(_projetos_excel_path(), engine="openpyxl") as writer:
         df_resumo.to_excel(writer, sheet_name="Resumo",     index=False)
         df_pags.to_excel(writer,   sheet_name="Pagamentos", index=False)
+        _carregar_marcos().to_excel(writer, sheet_name="Marcos",  index=False)
 
 
 def tab_upload(data: dict):
@@ -2947,7 +3368,7 @@ def tab_upload(data: dict):
     </style>
     """, unsafe_allow_html=True)
 
-    aba_obras, aba_projetos = st.tabs(["🏗 Obras", "📋 Projetos"])
+    aba_obras, aba_projetos, aba_marcos = st.tabs(["🏗 Obras", "📋 Projetos", "📌 Marcos"])
 
     # ══════════════════════════════════════════════════════════════════════
     # SUBABA OBRAS — Upload EAP
@@ -3434,6 +3855,143 @@ def tab_upload(data: dict):
                 if st.button("✕ Cancelar", use_container_width=True, key="canc_save_pags"):
                     st.session_state.pop("_confirm_save_pags", None)
                     st.rerun()
+
+    # ══════════════════════════════════════════════════════════════════════
+    # SUBABA MARCOS — Cadastro de marcos do cronograma
+    # ══════════════════════════════════════════════════════════════════════
+    with aba_marcos:
+        import io as _io_m
+
+        card(
+            "Marcos do Cronograma",
+            """
+            <p style="font-size:13px;color:var(--text2);line-height:1.7;margin:0;">
+                Cadastre os marcos do cronograma da obra. Os dados são salvos na aba
+                <strong>Marcos</strong> do arquivo <strong>data/registros_projetos.xlsx</strong>
+                e exibidos no card <strong>Cronograma de Marcos</strong> da aba <strong>Prazos</strong>.
+            </p>
+            """
+        )
+        spacer(12)
+
+        _MARCOS_COLS   = ["descricao", "tipo", "data_prevista", "data_realizada", "status", "idp", "observacoes"]
+        _MARCOS_TIPOS  = ["Contratual", "Físico", "Financeiro", "Legal", "Outro"]
+        _MARCOS_STATUS = ["Pendente", "Previsto", "Em andamento", "Emitida", "Concluído", "Atrasado", "Cancelado"]
+
+        df_marcos_cur = _carregar_marcos()
+
+        # Botões de ação: Download + Limpar
+        _mc1, _mc2, _esp = st.columns([1, 1, 4])
+        with _mc1:
+            _buf_m = _io_m.BytesIO()
+            _df_r_dl  = _carregar_registros_projetos()
+            _df_p_dl  = _carregar_pagamentos_projetos()
+            with pd.ExcelWriter(_buf_m, engine="openpyxl") as _wm:
+                _df_r_dl.to_excel(_wm,  sheet_name="Resumo",     index=False)
+                _df_p_dl.to_excel(_wm,  sheet_name="Pagamentos", index=False)
+                df_marcos_cur.to_excel(_wm, sheet_name="Marcos", index=False)
+            st.download_button(
+                "⬇ Baixar Excel",
+                data=_buf_m.getvalue(),
+                file_name="registros_projetos.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="dl_marcos_excel",
+            )
+        with _mc2:
+            if st.button("🗑 Limpar Marcos", key="btn_clear_marcos", use_container_width=True):
+                st.session_state["_confirm_clear_marcos"] = True
+
+        if st.session_state.get("_confirm_clear_marcos"):
+            st.warning("⚠ Tem certeza? Isso apagará **todos** os marcos cadastrados.")
+            _cm1, _cm2, _ = st.columns([1, 1, 4])
+            with _cm1:
+                if st.button("✓ Sim, apagar", type="primary", use_container_width=True, key="conf_clear_marcos"):
+                    try:
+                        _salvar_marcos(pd.DataFrame(columns=_MARCOS_COLS))
+                        st.session_state.pop("_confirm_clear_marcos", None)
+                        st.success("Marcos apagados.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Erro: {exc}")
+            with _cm2:
+                if st.button("✕ Cancelar", use_container_width=True, key="canc_clear_marcos"):
+                    st.session_state.pop("_confirm_clear_marcos", None)
+                    st.rerun()
+
+        spacer(12)
+        st.caption("MARCOS DO CRONOGRAMA")
+
+        # Prepara dataframe para o editor
+        # Garante que colunas novas (ex: idp) existam mesmo em arquivos antigos
+        if len(df_marcos_cur) > 0:
+            for _c in _MARCOS_COLS:
+                if _c not in df_marcos_cur.columns:
+                    df_marcos_cur[_c] = ""
+            df_marcos_edit = df_marcos_cur[_MARCOS_COLS].copy()
+        else:
+            df_marcos_edit = pd.DataFrame(columns=_MARCOS_COLS)
+
+        for _col in _MARCOS_COLS:
+            if _col not in df_marcos_edit.columns:
+                df_marcos_edit[_col] = ""
+            df_marcos_edit[_col] = df_marcos_edit[_col].fillna("").astype(str)
+
+        edited_marcos = st.data_editor(
+            df_marcos_edit,
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            key="de_marcos",
+            column_config={
+                "descricao":      st.column_config.TextColumn("Descrição do Marco", width="large"),
+                "tipo":           st.column_config.SelectboxColumn(
+                                      "Tipo", width="medium",
+                                      options=_MARCOS_TIPOS, required=True),
+                "data_prevista":  st.column_config.TextColumn("Data Prevista", width="medium",
+                                      help="Formato: DD/MM/AAAA"),
+                "data_realizada": st.column_config.TextColumn("Data Realizada", width="medium",
+                                      help="Formato: DD/MM/AAAA · Deixe em branco se não concluído"),
+                "status":         st.column_config.SelectboxColumn(
+                                      "Status", width="medium",
+                                      options=_MARCOS_STATUS, required=True),
+                "idp":            st.column_config.TextColumn("IDP da Medição", width="small",
+                                      help="Informe o IDP desta medição (ex: 0,95). Opcional."),
+                "observacoes":    st.column_config.TextColumn("Observações", width="large"),
+            },
+        )
+
+        _sm1, _sm2, _ = st.columns([1, 1, 4])
+        with _sm1:
+            if st.button("💾 Salvar Marcos", type="primary", use_container_width=True, key="btn_save_marcos"):
+                st.session_state["_confirm_save_marcos"] = True
+
+        if st.session_state.get("_confirm_save_marcos"):
+            st.warning("⚠ Tem certeza que deseja salvar as alterações nos Marcos?")
+            _scm1, _scm2, _ = st.columns([1, 1, 4])
+            with _scm1:
+                if st.button("✓ Confirmar", type="primary", use_container_width=True, key="conf_save_marcos"):
+                    try:
+                        _df_ms = edited_marcos.copy()
+                        for _col in _MARCOS_COLS:
+                            if _col not in _df_ms.columns:
+                                _df_ms[_col] = ""
+                        _salvar_marcos(_df_ms[_MARCOS_COLS])
+                        st.session_state.pop("_confirm_save_marcos", None)
+                        st.success("✓ Marcos salvos.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Erro: {exc}")
+            with _scm2:
+                if st.button("✕ Cancelar", use_container_width=True, key="canc_save_marcos"):
+                    st.session_state.pop("_confirm_save_marcos", None)
+                    st.rerun()
+
+        st.markdown(
+            f"<div style='font-size:11px;color:var(--text3);margin-top:6px;'>"
+            f"{len(df_marcos_cur)} marco(s) · aba Marcos em data/registros_projetos.xlsx</div>",
+            unsafe_allow_html=True,
+        )
 
 
 
