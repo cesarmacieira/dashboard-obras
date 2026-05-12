@@ -56,11 +56,12 @@ ETAPA_CORES = [
 
 
 def _build_data(config: dict, df_eap: pd.DataFrame, df_totais: pd.DataFrame) -> dict:
-    # Detecta automaticamente a última medição com dados reais no df_totais,
+    # Detecta automaticamente a última medição com valor medido no mês > 0,
     # ignorando o valor de CONFIG!B2 que pode estar desatualizado no arquivo Excel.
+    # Medições futuras têm total_medido == 0; só medições realizadas têm valor > 0.
     _med_config = int(config["medicao_atual"])
     _meds_com_dados = df_totais[
-        df_totais["total_pct_acum"].notna() & (df_totais["total_pct_acum"] > 0)
+        df_totais["total_medido"].notna() & (df_totais["total_medido"] > 0)
     ]["medicao"].tolist()
     med_atual = max(_meds_com_dados) if _meds_com_dados else _med_config
     idp_val = config["idp"]["valor"] or 1.0
@@ -2060,22 +2061,52 @@ def render_situacao_obra(data: dict, return_markup: bool = False):
     total = prazos["execucao_total_dias"]
     pct   = dec / total if total else 0
 
-    # Próximas medições: calcular mês a partir da data_ref da medição atual
+    # Medições: calcular labels a partir da data_ref da medição atual
     df_t      = data["_df_totais"]
-    prox_num  = med["medicao_atual"] + 1
-    fut_num   = med["medicao_atual"] + 2
+    med_atual_num = med["medicao_atual"]
+    m2_num    = med_atual_num - 2
+    m1_num    = med_atual_num - 1
+    prox_num  = med_atual_num + 1
     import datetime as _dt
     MESES_PT  = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
-    prox_label = "A definir"
-    fut_label  = "A definir"
-    row_ref = df_t[df_t["medicao"] == med["medicao_atual"]]
-    if len(row_ref) and row_ref["data_ref"].iloc[0]:
-        ref = row_ref["data_ref"].iloc[0]
-        if isinstance(ref, _dt.date):
-            pm, py = (ref.month % 12) + 1, ref.year + (1 if ref.month == 12 else 0)
-            fm, fy = ((ref.month + 1) % 12) + 1, ref.year + (1 if ref.month >= 11 else 0)
-            prox_label = f"{MESES_PT[pm-1]}/{str(py)[2:]}"
-            fut_label  = f"{MESES_PT[fm-1]}/{str(fy)[2:]}"
+
+    def _label_from_data_ref(df_t, med_num):
+        """Retorna label 'Mmm/AA' para uma medição a partir de data_ref."""
+        row = df_t[df_t["medicao"] == med_num]
+        if len(row) and row["data_ref"].iloc[0] is not None:
+            dr = row["data_ref"].iloc[0]
+            if isinstance(dr, _dt.date):
+                return f"{MESES_PT[dr.month-1]}/{str(dr.year)[2:]}"
+        return None
+
+    def _label_offset(base_date, months_offset):
+        """Calcula label deslocando N meses de base_date."""
+        if base_date is None:
+            return "A definir"
+        m = base_date.month - 1 + months_offset
+        year  = base_date.year + m // 12
+        month = (m % 12) + 1
+        return f"{MESES_PT[month-1]}/{str(year)[2:]}"
+
+    # data_ref da medição atual
+    _row_atual = df_t[df_t["medicao"] == med_atual_num]
+    _base_date = None
+    if len(_row_atual) and _row_atual["data_ref"].iloc[0] is not None:
+        _dr = _row_atual["data_ref"].iloc[0]
+        if isinstance(_dr, _dt.date):
+            _base_date = _dr
+
+    # Labels das medições anteriores (prefere data_ref real; fallback por offset)
+    m2_label = _label_from_data_ref(df_t, m2_num) or (_label_offset(_base_date, -2) if _base_date else "A definir")
+    m1_label = _label_from_data_ref(df_t, m1_num) or (_label_offset(_base_date, -1) if _base_date else "A definir")
+    atual_label = _label_from_data_ref(df_t, med_atual_num) or (_label_offset(_base_date, 0) if _base_date else "A definir")
+    prox_label  = _label_offset(_base_date, 1)
+
+    # Percentuais das medições M-2 e M-1
+    row_m2 = df_t[df_t["medicao"] == m2_num]
+    row_m1 = df_t[df_t["medicao"] == m1_num]
+    pct_m2 = float(row_m2["total_pct_mes"].iloc[0]) if len(row_m2) else None
+    pct_m1 = float(row_m1["total_pct_mes"].iloc[0]) if len(row_m1) else None
 
     body = f"""
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
@@ -2114,24 +2145,24 @@ def render_situacao_obra(data: dict, return_markup: bool = False):
         </div>
         <div class="medicoes-grid">
             <div class="med-card med-green">
-                <div>Anterior</div>
-                <strong>{fmt_percent(med["medicoes_anteriores_percentual"])}</strong>
-                <div>Até med. {med["medicao_atual"] - 1}</div>
+                <div>Med. {m2_num}</div>
+                <strong>{fmt_percent(pct_m2) if pct_m2 is not None else "—"}</strong>
+                <div>{m2_label}</div>
+            </div>
+            <div class="med-card med-green">
+                <div>Med. {m1_num}</div>
+                <strong>{fmt_percent(pct_m1) if pct_m1 is not None else "—"}</strong>
+                <div>{m1_label}</div>
             </div>
             <div class="med-card med-blue-active">
-                <div>Med. {med["medicao_atual"]} ▶</div>
+                <div>Med. {med_atual_num} ▶</div>
                 <strong>{fmt_percent(med["mes_atual_percentual"])}</strong>
-                <div>Atual</div>
+                <div>{atual_label}</div>
             </div>
             <div class="med-card med-gray">
                 <div>Med. {prox_num}</div>
                 <strong>—</strong>
                 <div>{prox_label}</div>
-            </div>
-            <div class="med-card med-gray">
-                <div>Med. {fut_num}</div>
-                <strong>—</strong>
-                <div>{fut_label}</div>
             </div>
         </div>
     </div>
@@ -2270,7 +2301,6 @@ def render_fin_summary(data: dict):
             <div class="card" style="text-align:center;">
                 <div class="kpi-label">Valor do Contrato</div>
                 <div class="kpi-value small">{fmt_money(data["valor_contrato"])}</div>
-                <div class="kpi-sub">EAP DE MEDIÇÃO — soma itens nível 1</div>
             </div>
             <div class="card" style="text-align:center;">
                 <div class="kpi-label">Executado Acumulado</div>
@@ -3717,7 +3747,7 @@ def tab_upload(data: dict):
                 df_hist.to_excel(_w, sheet_name="Resumo", index=False)
                 _df_pags_dl.to_excel(_w, sheet_name="Pagamentos", index=False)
             st.download_button(
-                "⬇ Baixar Excel",
+                "Download Excel",
                 data=_buf_dl.getvalue(),
                 file_name="registros_projetos.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -3752,11 +3782,9 @@ def tab_upload(data: dict):
         _RESUMO_COLS = ["medicao", "data_registro", "avanco_geral_pct",
                         "montante_total", "saldo_devedor", "status_geral", "observacoes"]
         import datetime as _dt2
-        _RESUMO_EMPTY = {
-            "medicao": 1, "data_registro": _dt2.date.today(),
+        _RESUMO_EMPTY = {"medicao": 1, "data_registro": _dt2.date.today(),
             "avanco_geral_pct": 0.0, "montante_total": 0.0,
-            "saldo_devedor": 0.0, "status_geral": "Pendente", "observacoes": "",
-        }
+            "saldo_devedor": 0.0, "status_geral": "Pendente", "observacoes": ""}
 
         if len(df_hist) > 0:
             df_resumo_edit = df_hist[_RESUMO_COLS].copy()
@@ -3824,12 +3852,8 @@ def tab_upload(data: dict):
         df_resumo_disp["saldo_devedor"]    = df_resumo_disp["saldo_devedor"].apply(lambda v: f"R$ {v:,.2f}".replace(",","X").replace(".",",").replace("X","."))
         df_resumo_disp["data_registro"]    = df_resumo_disp["data_registro"].apply(lambda v: v.strftime("%d/%m/%Y") if hasattr(v,"strftime") else str(v))
 
-        edited_resumo = st.data_editor(
-            df_resumo_disp,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic",
-            key="de_resumo2",
+        edited_resumo = st.data_editor(df_resumo_disp, use_container_width=True, hide_index=True,
+            num_rows="dynamic", key="de_resumo2",
             column_config={
                 "medicao":          st.column_config.TextColumn("Med.", width="small"),
                 "data_registro":    st.column_config.TextColumn("Data", width="medium"),
@@ -3838,8 +3862,7 @@ def tab_upload(data: dict):
                 "saldo_devedor":    st.column_config.TextColumn("Saldo (R$)", width="medium"),
                 "status_geral":     st.column_config.SelectboxColumn("Status", width="small", options=["Pago", "Pendente", "Nao Pago"], required=True),
                 "observacoes":      st.column_config.TextColumn("Observacoes", width="large"),
-            },
-        )
+            })
 
         _sr1, _sr2, _ = st.columns([1, 1, 4])
         with _sr1:
@@ -3858,8 +3881,7 @@ def tab_upload(data: dict):
                                 _df_r_save[col] = ""
                         # Converte data de volta para string
                         _df_r_save["data_registro"] = _df_r_save["data_registro"].apply(
-                            lambda v: v.strftime("%d/%m/%Y") if hasattr(v, "strftime") else str(v)
-                        )
+                            lambda v: v.strftime("%d/%m/%Y") if hasattr(v, "strftime") else str(v))
                         # Garante float nos campos numericos (converte strings BR: "R$ 1.234,56" -> 1234.56)
                         def _br_to_float(v):
                             if v is None or (isinstance(v, float) and pd.isna(v)): return 0.0
@@ -3885,11 +3907,9 @@ def tab_upload(data: dict):
                     st.session_state.pop("_confirm_save_resumo", None)
                     st.rerun()
 
-        st.markdown(
-            f"<div style='font-size:11px;color:var(--text3);margin-top:6px;'>"
+        st.markdown(f"<div style='font-size:11px;color:var(--text3);margin-top:6px;'>"
             f"{len(df_hist)} registro(s) · data/registros_projetos.xlsx</div>",
-            unsafe_allow_html=True,
-        )
+            unsafe_allow_html=True)
 
         spacer(24)
 
@@ -3931,20 +3951,15 @@ def tab_upload(data: dict):
         df_pags_disp["pct"]     = df_pags_disp["pct"].apply(lambda v: f"{v:.1f}")
         df_pags_disp["valor"]   = df_pags_disp["valor"].apply(lambda v: f"R$ {v:,.2f}".replace(",","X").replace(".",",").replace("X","."))
 
-        edited_pags = st.data_editor(
-            df_pags_disp,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic",
-            key="de_pags2",
+        edited_pags = st.data_editor(df_pags_disp, use_container_width=True, hide_index=True,
+            num_rows="dynamic", key="de_pags2",
             column_config={
                 "medicao": st.column_config.TextColumn("Med.", width="small"),
                 "etapa":   st.column_config.TextColumn("Etapa / Projeto", width="large"),
                 "pct":     st.column_config.TextColumn("% Avanço", width="small"),
                 "valor":   st.column_config.TextColumn("Valor (R$)", width="medium"),
                 "status":  st.column_config.SelectboxColumn("Status", width="small", options=["Pago", "Pendente", "Nao Pago"], required=True),
-            },
-        )
+            })
 
         _pp1, _pp2, _ = st.columns([1, 1, 4])
         with _pp1:
@@ -3991,25 +4006,19 @@ def tab_upload(data: dict):
     # ══════════════════════════════════════════════════════════════════════
     with aba_marcos:
         import io as _io_m
-
-        card(
-            "Marcos do Cronograma",
+        card("Marcos do Cronograma",
             """
             <p style="font-size:13px;color:var(--text2);line-height:1.7;margin:0;">
                 Cadastre os marcos do cronograma da obra. Os dados são salvos na aba
                 <strong>Marcos</strong> do arquivo <strong>data/registros_projetos.xlsx</strong>
                 e exibidos no card <strong>Cronograma de Marcos</strong> da aba <strong>Prazos</strong>.
             </p>
-            """
-        )
+            """)
         spacer(12)
-
         _MARCOS_COLS   = ["descricao", "tipo", "data_prevista", "data_realizada", "status", "idp", "observacoes"]
         _MARCOS_TIPOS  = ["Contratual", "Físico", "Financeiro", "Legal", "Outro"]
         _MARCOS_STATUS = ["Pendente", "Previsto", "Em andamento", "Emitida", "Concluído", "Atrasado", "Cancelado"]
-
         df_marcos_cur = _carregar_marcos()
-
         # Botões de ação: Download + Limpar
         _mc1, _mc2, _esp = st.columns([1, 1, 4])
         with _mc1:
@@ -4020,18 +4029,12 @@ def tab_upload(data: dict):
                 _df_r_dl.to_excel(_wm,  sheet_name="Resumo",     index=False)
                 _df_p_dl.to_excel(_wm,  sheet_name="Pagamentos", index=False)
                 df_marcos_cur.to_excel(_wm, sheet_name="Marcos", index=False)
-            st.download_button(
-                "⬇ Baixar Excel",
-                data=_buf_m.getvalue(),
-                file_name="registros_projetos.xlsx",
+            st.download_button("Download Excel", data=_buf_m.getvalue(), file_name="registros_projetos.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="dl_marcos_excel",
-            )
+                use_container_width=True, key="dl_marcos_excel")
         with _mc2:
             if st.button("🗑 Limpar Marcos", key="btn_clear_marcos", use_container_width=True):
                 st.session_state["_confirm_clear_marcos"] = True
-
         if st.session_state.get("_confirm_clear_marcos"):
             st.warning("⚠ Tem certeza? Isso apagará **todos** os marcos cadastrados.")
             _cm1, _cm2, _ = st.columns([1, 1, 4])
@@ -4048,12 +4051,9 @@ def tab_upload(data: dict):
                 if st.button("✕ Cancelar", use_container_width=True, key="canc_clear_marcos"):
                     st.session_state.pop("_confirm_clear_marcos", None)
                     st.rerun()
-
         spacer(12)
         st.caption("MARCOS DO CRONOGRAMA")
-
         # Prepara dataframe para o editor
-        # Garante que colunas novas (ex: idp) existam mesmo em arquivos antigos
         if len(df_marcos_cur) > 0:
             for _c in _MARCOS_COLS:
                 if _c not in df_marcos_cur.columns:
@@ -4067,12 +4067,8 @@ def tab_upload(data: dict):
                 df_marcos_edit[_col] = ""
             df_marcos_edit[_col] = df_marcos_edit[_col].fillna("").astype(str)
 
-        edited_marcos = st.data_editor(
-            df_marcos_edit,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic",
-            key="de_marcos",
+        edited_marcos = st.data_editor(df_marcos_edit, use_container_width=True, hide_index=True,
+            num_rows="dynamic", key="de_marcos",
             column_config={
                 "descricao":      st.column_config.TextColumn("Descrição do Marco", width="large"),
                 "tipo":           st.column_config.SelectboxColumn(
@@ -4088,8 +4084,7 @@ def tab_upload(data: dict):
                 "idp":            st.column_config.TextColumn("IDP da Medição", width="small",
                                       help="Informe o IDP desta medição (ex: 0,95). Opcional."),
                 "observacoes":    st.column_config.TextColumn("Observações", width="large"),
-            },
-        )
+            })
 
         _sm1, _sm2, _ = st.columns([1, 1, 4])
         with _sm1:
@@ -4117,14 +4112,9 @@ def tab_upload(data: dict):
                     st.session_state.pop("_confirm_save_marcos", None)
                     st.rerun()
 
-        st.markdown(
-            f"<div style='font-size:11px;color:var(--text3);margin-top:6px;'>"
+        st.markdown(f"<div style='font-size:11px;color:var(--text3);margin-top:6px;'>"
             f"{len(df_marcos_cur)} marco(s) · aba Marcos em data/registros_projetos.xlsx</div>",
-            unsafe_allow_html=True,
-        )
-
-
-
+            unsafe_allow_html=True)
 
 # =============================================================================
 # APP
