@@ -56,7 +56,13 @@ ETAPA_CORES = [
 
 
 def _build_data(config: dict, df_eap: pd.DataFrame, df_totais: pd.DataFrame) -> dict:
-    med_atual = int(config["medicao_atual"])
+    # Detecta automaticamente a última medição com dados reais no df_totais,
+    # ignorando o valor de CONFIG!B2 que pode estar desatualizado no arquivo Excel.
+    _med_config = int(config["medicao_atual"])
+    _meds_com_dados = df_totais[
+        df_totais["total_pct_acum"].notna() & (df_totais["total_pct_acum"] > 0)
+    ]["medicao"].tolist()
+    med_atual = max(_meds_com_dados) if _meds_com_dados else _med_config
     idp_val = config["idp"]["valor"] or 1.0
 
     # ---- Prazos — calcular dinamicamente a partir de hoje ----------------
