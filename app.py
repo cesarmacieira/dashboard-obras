@@ -50,8 +50,9 @@ def fmt_date(v) -> str:
 # =============================================================================
 
 ETAPA_CORES = [
-    "green", "blue", "amber",
-    "gray", "gray", "gray", "gray", "gray", "gray", "gray",
+    "green", "blue", "amber", "purple", "red",
+    "teal", "orange", "cyan", "violet", "emerald",
+    "rose", "indigo", "lime", "sky", "fuchsia",
 ]
 
 
@@ -1723,8 +1724,10 @@ def plot_barras_etapas(data: dict):
 def _plot_barras_etapas_valor_UNUSED(data: dict):
     """Barras horizontais: valor contratual por etapa (só etapas com valor > 0)."""
     etapas = data["etapas"]
-    COLORS = ["#2D9B63","#2E6DA4","#D4910E","#B05CC0",
-              "#B0ADA6","#888780","#B0ADA6","#888780","#B0ADA6","#B0ADA6"]
+    COLORS = [
+        "#2E6DA4", "#2D9B63", "#D4910E", "#B05CC0", "#C0392B",
+        "#16A085", "#E67E22", "#2980B9", "#8E44AD", "#27AE60",
+    ]
 
     # Filtrar só etapas com valor contratual
     etapas_com_valor = [e for e in etapas if e["valor_total"] > 0]
@@ -2365,7 +2368,23 @@ def render_fin_composition(data: dict):
         except: return (9999,)
 
     all_items_sorted = sorted(todos_map.keys(), key=_sort_key)
-    COLORS = ["#2D9B63", "#2E6DA4", "#D4910E", "#B05CC0", "#607D8B"]
+    COLORS = [
+        "#1B5EA6",  # 1  azul royal
+        "#27A85F",  # 2  verde
+        "#E0A800",  # 3  amarelo ouro
+        "#9B2EC4",  # 4  roxo
+        "#D63B2F",  # 5  vermelho
+        "#6B7280",  # 6  cinza médio
+        "#E67E22",  # 7  laranja
+        "#0E8C8C",  # 8  teal
+        "#B5006E",  # 9  magenta
+        "#3D5A00",  # 10 verde oliva
+        "#1A1A6E",  # 11 azul marinho
+        "#A0522D",  # 12 marrom
+        "#00838F",  # 13 ciano escuro
+        "#C77000",  # 14 ocre
+        "#4A0072",  # 15 violeta escuro
+    ]
     COL_GRID = "64px minmax(0,1fr) 118px 80px 118px 62px"
 
     # CSS para os <details> — injetado uma vez
@@ -2400,7 +2419,7 @@ def render_fin_composition(data: dict):
     blocks = ""
     count  = 0
 
-    for ei, row_orc in df_orc.iterrows():
+    for ei, (_, row_orc) in enumerate(df_orc.iterrows()):
         etapa_id  = str(row_orc["item"])
         etapa_cor = COLORS[ei % len(COLORS)]
 
